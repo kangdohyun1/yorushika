@@ -62,6 +62,10 @@ jobs:
           path: signing/release.jks
           key: yoru-signing-v1
 
+      - name: App icon (icon/app-icon.png 이 있으면)
+        run: |
+          if [ -f icon/app-icon.png ]; then pip install --quiet pillow && python3 tools/make_icons.py; fi
+
       - name: Bundle web app
         run: |
           mkdir -p android/app/src/main/assets/www
