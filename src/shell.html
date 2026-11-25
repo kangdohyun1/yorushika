@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko" data-mode="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f4ec">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>夜しか — 요루시카 서재</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>/*CSS*/</style>
+</head>
+<body>
+<div id="sky"></div>
+<div id="app">
+  <aside id="side">
+    <div class="brand"><div class="v">ヨルシカ</div><small>요루시카<br>개인 서재</small></div>
+    <a class="nav" data-nav="home" href="#/home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>홈</a>
+    <a class="nav" data-nav="albums" href="#/albums"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>앨범</a>
+    <a class="nav" data-nav="playlists" href="#/playlists"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h12M4 12h12M4 18h8M18 15v6m-3-3h6"/></svg>플레이리스트</a>
+    <a class="nav" data-nav="story" href="#/story"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v16M8 7h7"/></svg>이야기 · 세계관</a>
+    <a class="nav" data-nav="search" href="#/search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>검색</a>
+    <a class="nav" data-nav="settings" href="#/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>설정 · 음원</a>
+    <div class="side-foot">n-buna · suis<br>夏と、月と、手紙の話。</div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<div id="player">
+  <div class="now" id="pNow"></div>
+  <div class="ctr">
+    <div class="b"><button class="ibtn hide-m" id="pShuf" data-act="shuf" title="셔플"></button><button class="ibtn hide-m" data-act="prev" title="이전"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5 9 12l10 7z"/></svg></button>
+      <button class="play" id="pPlay" data-act="toggle" title="재생/일시정지"></button>
+      <button class="ibtn" data-act="next" title="다음"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l10 7-10 7z"/></svg></button><button class="ibtn hide-m" id="pRep" data-act="rep" title="반복"></button></div>
+    <div class="seek"><span id="tCur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0"><span id="tDur">0:00</span></div>
+  </div>
+  <div class="rgt"><button class="ibtn" id="themeBtn" data-act="theme" title="낮/밤"></button><button class="ibtn" data-act="opennp" title="가사 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 11h10M4 16h16M4 21h7"/></svg></button><svg viewBox="0 0 24 24" width="18" fill="none" stroke="currentColor" stroke-width="1.7" style="color:var(--ink3)"><path d="M4 9v6h4l5 4V5L8 9z"/></svg><input type="range" id="vol" class="vol" min="0" max="1" step="0.01"></div>
+  <div class="mprog" id="mprog"><i></i></div>
+</div>
+
+<nav id="tabs">
+  <a class="nav" data-nav="home" href="#/home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>홈</a>
+  <a class="nav" data-nav="albums" href="#/albums"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>앨범</a>
+  <a class="nav" data-nav="playlists" href="#/playlists"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h12M4 12h12M4 18h8M18 15v6m-3-3h6"/></svg>리스트</a>
+  <a class="nav" data-nav="story" href="#/story"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v16M8 7h7"/></svg>이야기</a>
+  <a class="nav" data-nav="search" href="#/search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>검색</a>
+  <a class="nav" data-nav="settings" href="#/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>설정</a>
+</nav>
+
+<section id="np"></section>
+<div id="modal"><div class="box"></div></div>
+<div id="toast"></div>
+<script>/*DATA*/</script>
+<script>/*APP*/</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'   # 매주 월요일: 서명 키 캐시가 만료되지 않게 한 번 열어 둔다
+
+permissions:
+  contents: write
+
+jobs:
+  keep-key:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache/restore@v4
+        with:
+          path: signing/release.jks
+          key: yoru-signing-v1
+
+  build:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      # 서명 키: 저장소 Secret(KEYSTORE_B64)이 있으면 그것을, 없으면 처음 한 번 만들어 캐시에 보관한다.
+      # 같은 키로 서명해야 새 버전을 덮어 설치할 수 있다.
+      - name: Restore signing key
+        id: key
+        uses: actions/cache/restore@v4
+        with:
+          path: signing/release.jks
+          key: yoru-signing-v1
+      - name: Prepare signing key
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          mkdir -p signing
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > signing/release.jks
+          elif [ ! -f signing/release.jks ]; then
+            keytool -genkeypair -keystore signing/release.jks -storepass yorushika -keypass yorushika \
+              -alias yoru -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=Yorushika Personal"
+          fi
+          cp signing/release.jks android/app/release.jks
+      - name: Save signing key
+        if: steps.key.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: signing/release.jks
+          key: yoru-signing-v1
+
+      - name: Bundle web app
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          cp -r docs/. android/app/src/main/assets/www/
+          rm -f android/app/src/main/assets/www/sw.js android/app/src/main/assets/www/.nojekyll
+
+      - name: Build
+        env:
+          BUILD_NUM: ${{ github.run_number }}
+        run: gradle -p android assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk yorushika-v1.0.${{ github.run_number }}.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: 요루시카 서재 v1.0.${{ github.run_number }}
+          make_latest: true
+          body: |
+            휴대폰에서 아래 **yorushika-v1.0.${{ github.run_number }}.apk** 를 눌러 받은 뒤 설치하세요.
+            처음 설치할 때 "출처를 알 수 없는 앱 설치"를 허용해야 할 수 있어요.
+            이미 설치했다면 그대로 덮어 설치하면 되고, 음원·가사·플레이리스트는 유지됩니다.
+          files: yorushika-v1.0.${{ github.run_number }}.apk

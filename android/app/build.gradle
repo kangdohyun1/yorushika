@@ -1,0 +1,43 @@
+plugins { id 'com.android.application' }
+
+def buildNum = (System.getenv('BUILD_NUM') ?: '1') as int
+
+android {
+    namespace 'kr.kangdohyun.yorushika'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'kr.kangdohyun.yorushika'
+        minSdk 26
+        targetSdk 34
+        versionCode buildNum
+        versionName "1.0.${buildNum}"
+    }
+    signingConfigs {
+        release {
+            storeFile file('release.jks')
+            storePassword System.getenv('KS_PASS') ?: 'yorushika'
+            keyAlias 'yoru'
+            keyPassword System.getenv('KS_PASS') ?: 'yorushika'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint { checkReleaseBuilds false; abortOnError false }
+}
+
+dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.media3:media3-session:1.4.1'
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.work:work-runtime:2.9.1'
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'com.google.guava:guava:33.2.1-android'
+}
