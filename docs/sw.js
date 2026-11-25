@@ -1,5 +1,5 @@
-const C='yoru-v3';
-const ART=['natsukusa','makeinu','dakara','elma','tousaku','sousaku','gentou','nininshou','singles'].map(a=>'art/'+a+'.png');
+const C='yoru-v4';
+const ART=['natsukusa','makeinu','dakara','elma','tousaku','sousaku','gentou','nininshou','singles','live-zense21','live-gekkou','live-tsuki','live-zense24','live-tousaku'].map(a=>'art/'+a+'.png');
 const CORE=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png',...ART];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(CORE)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim()});

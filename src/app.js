@@ -54,8 +54,13 @@ function buildIndex(){
       const KAU = LS.get('krAutoIds', []);
       SONGS[id] = { id, jp:t[0], kr:KO[id] || t[1], inst:t[2]==='i', album:a.id, no:i+1, isNew:t[3]==='new', untr: !KO[id] && t[1]===t[0] && t[3]==='new', auto: KO[id] ? KAU.includes(id) : t[4]==='auto' };
       ORDER.push(id); }); });
+  VER.clear(); ORDER.forEach(id => { const k = norm(baseTitle(SONGS[id].jp)); if (!k) return; if (!VER.has(k)) VER.set(k, []); VER.get(k).push(id); });
+  ORDER.forEach(id => { const s = SONGS[id]; s.live = !!ALB[s.album].live; s.rr = /Re-Recording/.test(s.jp);
+    const vs = VER.get(norm(baseTitle(s.jp))) || []; const o = vs.find(x => !ALB[SONGS[x].album].live && !/Re-Recording/.test(SONGS[x].jp));
+    s.orig = o && o !== id ? o : null; });
 }
-applyExtras(); buildIndex();
+const VER = new Map();
+const versionsOf = id => (VER.get(norm(baseTitle(SONGS[id].jp))) || []).filter(x => x !== id);
 const baseTitle = s => s.replace(/\s*\(Re-Recording\)/,'');
 const noteOf = s => NOTES[s.jp] || NOTES[baseTitle(s.jp)] || '';
 
@@ -117,6 +122,7 @@ const I = { // 아이콘
 };
 const ic = (n, sw=1.7) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
 
+applyExtras(); buildIndex();
 /* =================== 앨범 아트 (오리지널 SVG) =================== */
 function art(aid, big){
   const a = ALB[aid]; const c = a.hue, c2 = a.hue2; const t = a.jp;
@@ -157,6 +163,11 @@ function art(aid, big){
     case 'envelope': g = `<rect width="200" height="200" fill="${c2}"/><g transform="rotate(-6 100 100)"><rect x="30" y="52" width="140" height="94" fill="#fbf7ee" stroke="#b9b09c"/>
       <path d="M30 52 100 106 170 52" fill="none" stroke="#b9b09c"/><rect x="138" y="62" width="22" height="26" fill="none" stroke="${c}" stroke-dasharray="2 2"/>
       <circle cx="149" cy="75" r="6" fill="${c}"/></g><text x="22" y="180" font-family="Shippori Mincho,serif" font-size="12" fill="${c}" letter-spacing="3">二人称 ─ to you</text>`; break;
+    case 'live': g = `<defs><radialGradient id="g${aid}" cx=".5" cy=".18" r=".9"><stop offset="0" stop-color="${c}"/><stop offset="1" stop-color="${c2}"/></radialGradient></defs><rect width="200" height="200" fill="url(#g${aid})"/>
+      ${[-1,0,1].map(k=>`<path d="M${100+k*46} 0 L${100+k*46-26} 150 L${100+k*46+26} 150 Z" fill="#fff" opacity="${k?'.07':'.13'}"/>`).join('')}
+      <path d="M0 150 H200 V200 H0z" fill="#000" opacity=".35"/>${Array.from({length:14},(_,i)=>`<circle cx="${8+i*14.5}" cy="${172+(i%2)*6}" r="${4+(i%3)}" fill="#000" opacity=".45"/>`).join('')}
+      <text x="18" y="30" font-family="Shippori Mincho,serif" font-size="11" letter-spacing="5" fill="#fff" opacity=".85">LIVE</text>
+      <text x="18" y="142" font-family="Shippori Mincho,serif" font-size="8.5" letter-spacing="2" fill="#fff" opacity=".7">${esc(a.date)}</text>${vt(182,16,17,'#fff',a.tag||a.jp)}`; break;
     case 'paper': g = `<rect width="200" height="200" fill="${c2}"/><circle cx="92" cy="96" r="54" fill="${c}" opacity=".88"/><circle cx="92" cy="96" r="54" fill="none" stroke="${c}" stroke-width="1" transform="translate(10 8)" opacity=".5"/>
       <line x1="20" y1="176" x2="150" y2="176" stroke="${c}" stroke-width="1"/><text x="20" y="190" font-family="Shippori Mincho,serif" font-size="9" letter-spacing="1.5" fill="${c}">NEW · ${esc(a.date)}</text>${vt(182,16,16,'#1f2a36')}`; break;
     case 'moon': g = `<rect width="200" height="200" fill="#1c2546"/>
@@ -170,7 +181,7 @@ function art(aid, big){
 function accentFor(hex){ if (document.documentElement.dataset.mode!=='night') return hex; const n = parseInt(hex.slice(1),16); const m = c => Math.round(c + (255-c)*0.48); return '#'+[m(n>>16&255),m(n>>8&255),m(n&255)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 function setAccent(hex){ document.documentElement.style.setProperty('--accent', accentFor(hex)); }
 /* =================== 라우팅 =================== */
-const routes = { home:vHome, albums:vAlbums, album:vAlbum, playlists:vPlaylists, playlist:vPlaylist, story:vStory, read:vRead, favs:vFavs, search:vSearch, settings:vSettings };
+const routes = { home:vHome, albums:vAlbums, album:vAlbum, playlists:vPlaylists, playlist:vPlaylist, story:vStory, read:vRead, versions:vVersions, favs:vFavs, search:vSearch, settings:vSettings };
 function go(h){ location.hash = h; }
 function render(){
   const [r, p] = (location.hash.slice(2) || 'home').split('/');
@@ -178,7 +189,7 @@ function render(){
   if (r!=='album') document.documentElement.style.setProperty('--accent', document.documentElement.dataset.mode==='night'?'#8fb4dc':'#3f6f9a');
   closeNP();
   const m = $('#main'); m.innerHTML = `<div class="view">${fn(p ? decodeURIComponent(p) : undefined)}</div>`; m.scrollTop = 0;
-  document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === (r==='album'?'albums':r==='playlist'?'playlists':r==='read'?'story':r)));
+  document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === (r==='album'||r==='versions'?'albums':r==='playlist'?'playlists':r==='read'?'story':r)));
   markPlaying();
   if (r==='search'){ const s=$('#q'); s && (s.focus(), s.setSelectionRange(s.value.length,s.value.length)); }
 }
@@ -214,18 +225,39 @@ function vHome(){
       <div class="vt">ヨルシカ</div></section>
     ${rec.length?`<div class="sec-t"><h2>최근 들은 곡</h2><span>最近</span></div><div class="card tl">${rec.map((id,i)=>trackRow(id,i,'search-rec')).join('')}</div>`:''}
     <div class="sec-t"><h2>앨범</h2><span>ディスコグラフィ</span></div>${shelf()}
+    <div class="sec-t"><h2>라이브</h2><span>ライブ</span></div>${shelf(ALBUMS.filter(a=>a.live))}
     <div class="sec-t"><h2>이야기 지도</h2><span>物語</span></div>
     <div class="arc-mini" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px">${STORY.arcs.map(a=>`<div class="card" style="padding:18px;cursor:pointer" data-go="#/read/${a.id}"><div class="tiny jp">${a.era}</div><div class="kr" style="font-weight:700;font-size:16px">${a.title}</div></div>`).join('')}</div>`;
 }
-function shelf(){ return `<div class="shelf">${ALBUMS.map(a=>`<div class="alb" data-go="#/album/${a.id}"><div class="art">${art(a.id)}${a.extra?'<span class="newb">NEW</span>':''}</div><div class="t">${esc(a.kr)}</div><div class="j">${esc(a.jp)}</div><div class="y">${a.date} · ${a.type}</div></div>`).join('')}</div>`; }
-function vAlbums(){ return `<h1 class="page">앨범</h1><p class="page-sub">アルバム · ${ALBUMS.length}개 · ${ORDER.length}곡</p>${shelf()}`; }
+function shelf(list){ list = list || ALBUMS.filter(a=>!a.live); return `<div class="shelf">${list.map(a=>`<div class="alb" data-go="#/album/${a.id}"><div class="art">${art(a.id)}${a.extra?'<span class="newb">NEW</span>':''}</div><div class="t">${esc(a.kr)}</div><div class="j">${esc(a.jp)}</div><div class="y">${a.date} · ${a.type}</div></div>`).join('')}</div>`; }
+function vAlbums(){ const st = ALBUMS.filter(a=>!a.live), lv = ALBUMS.filter(a=>a.live);
+  return `<h1 class="page">앨범</h1><p class="page-sub">アルバム · 스튜디오 ${st.length} · 라이브 ${lv.length}</p>${shelf(st)}
+  <div class="sec-t"><h2>라이브</h2><span>ライブ映像作品</span></div>${shelf(lv)}
+  <div class="sec-t"><h2>재녹음 · 다른 버전</h2><span>Re-Recording</span></div>${verCard()}`; }
+function verCard(){ return `<div class="card ver-link" data-go="#/versions"><div><b class="kr">원곡과 재녹음, 라이브를 나란히</b><div class="tiny">재녹음 ${ORDER.filter(id=>SONGS[id].rr).length}곡 · 라이브 ${ALBUMS.filter(a=>a.live).length}편 · 버전이 여러 개인 곡 ${[...VER.values()].filter(v=>v.length>1).length}곡</div></div><span class="ibtn">${ic('next')}</span></div>`; }
+function vVersions(){
+  const rr = ORDER.filter(id => SONGS[id].rr);
+  const pair = (o, v, label) => `<div class="card vpair"><div class="vp-h kr">${esc(SONGS[v].kr.replace(/\s*\(재녹음\)/,''))} <span class="jp tiny">${esc(baseTitle(SONGS[v].jp))}</span></div>
+    <div class="vp-row">${[o, v].map((x,i)=>`<div class="vp-c" data-chip="${x}"><div class="art">${art(SONGS[x].album)}</div><div><div class="tiny">${i? label : '원곡'}</div><div class="kr" style="font-weight:700">${esc(ALB[SONGS[x].album].kr)}</div><div class="tiny">${ALB[SONGS[x].album].date}</div></div><span class="ibtn">${ic(state.hasAudio.has(x)?'play':'music')}</span></div>`).join('<div class="vp-arrow">→</div>')}</div></div>`;
+  const counts = [...VER.entries()].map(([k, ids]) => ({ ids, n: ids.filter(x => SONGS[x].live).length })).filter(x => x.n).sort((a,b) => b.n - a.n);
+  const top = counts.slice(0, 12);
+  return `<h1 class="page">재녹음 · 라이브 버전</h1><p class="page-sub">Re-Recording · Live</p>
+  <div class="sec-t"><h2>재녹음</h2><span>Re-Recording</span></div>
+  <div class="vgrid">${rr.map(v => SONGS[v].orig ? pair(SONGS[v].orig, v, '재녹음') : '').join('')}
+    ${(()=>{ const g = ORDER.find(id=>SONGS[id].album==='gentou' && SONGS[id].jp==='靴の花火'), o = ORDER.find(id=>SONGS[id].album==='natsukusa' && SONGS[id].jp==='靴の花火'); return g && o ? pair(o, g, '「환등」 수록 버전') : ''; })()}</div>
+  <p class="tiny">「폭탄마」는 「도작」에, 「히치콕」은 「2인칭」에 재녹음 버전이 실렸습니다. 「신발의 불꽃놀이」는 같은 제목으로 「환등」에 다시 수록됐어요.</p>
+  <div class="sec-t"><h2>라이브 영상 작품</h2><span>ライブ</span></div>${shelf(ALBUMS.filter(a=>a.live))}
+  <div class="sec-t"><h2>라이브에서 자주 부른 곡</h2><span>5편 기준</span></div>
+  <div class="card tl">${top.map(({ids, n}) => { const s = SONGS[ids.find(x=>!SONGS[x].live) || ids[0]]; return `<div class="tr" data-id="${s.id}" data-ctx="search" data-i="0"><div class="n"><b class="jp" style="color:var(--accent);font-size:16px">${n}</b></div><div><div class="k">${esc(s.kr)}</div><div class="jj">${esc(s.jp)} · ${ids.filter(x=>SONGS[x].live).map(x=>esc(ALB[SONGS[x].album].tag)).join(' · ')}</div></div><div class="m"></div></div>`; }).join('')}</div>`;
+}
 function vAlbum(id){
   const a = ALB[id]; if(!a) return vAlbums();
   setAccent(a.hue);
   const ids = ctxList('alb:'+id); const n = ids.filter(x=>state.hasAudio.has(x)).length;
   return `<div class="ahead"><div class="art">${art(id,1)}</div><div><div class="type">${a.type.toUpperCase()} · ${a.date}</div><h1>${esc(a.kr)}${a.krAuto?' <span class="chip">자동 번역</span>':''} <button class="ibtn sm" data-act="renalb" data-alb="${id}" title="한국어 제목 고치기">${ic('edit')}</button></h1><div class="j">${esc(a.jp)}</div><p class="bl">${esc(a.blurb)}</p>
     <div class="acts"><button class="btn pri" data-play="alb:${id}">${ic('play')} 재생</button><button class="btn" data-play="alb:${id}" data-shuf="1">${ic('shuf')} 셔플</button><button class="btn" data-addall="alb:${id}">${ic('plus')} 전부 담기</button>${(()=>{const ar=STORY.arcs.find(x=>x.albums.includes(id));return ar&&DEEP[ar.id]?`<a class="btn" href="#/read/${ar.id}">${ic('book')} 이야기 읽기</a>`:''})()}<span class="tiny" style="align-self:center">${ids.length}곡 · 음원 ${n}/${ids.length}</span></div></div></div>
-    <div class="card tl">${ids.map((x,i)=>trackRow(x,i,'alb:'+id)).join('')}</div>`;
+    <div class="card tl">${ids.map((x,i)=>trackRow(x,i,'alb:'+id)).join('')}</div>
+    ${a.live ? `<p class="tiny" style="margin-top:14px">${a.readings && a.readings.length ? `목록에서 뺀 낭독·연출 파트: ${a.readings.map(esc).join(' · ')}<br>` : ''}공식 영상 작품의 수록곡 기준입니다. 음원은 직접 소장한 영상에서 뽑은 파일을 연결해 주세요(파일 이름에 'live'와 공연 이름이 있으면 자동 연결). 가사가 없으면 원곡 가사가 보여요.</p>` : ''}`;
 }
 function vFavs(){ const ids = ctxList('favs');
   return `<h1 class="page">좋아요</h1><p class="page-sub">お気に入り · ${ids.length}곡</p>${ids.length?`<div class="acts" style="margin-bottom:16px"><button class="btn pri" data-play="favs">${ic('play')} 재생</button></div><div class="card tl">${ids.map((x,i)=>trackRow(x,i,'favs')).join('')}</div>`:'<div class="empty card">♡ 를 눌러 좋아하는 곡을 모아 보세요.</div>'}`; }
@@ -263,6 +295,7 @@ function vStory(){
   <div class="card"><table class="ref">${S.references.map(r=>`<tr><td>${r[0]}</td><td class="kr">${r[1]}</td><td class="kr muted">${r[2]}</td><td style="text-align:right">${r[3]?`<i class="tag ${r[3]}">${TAGS[r[3]][0]}</i>`:''}</td></tr>`).join('')}</table></div>
   <div class="sec-t"><h2>라이브 연표</h2><span>ライブ</span></div>
   <div class="card lives">${S.lives.map(l=>`<div class="live"><div class="yr">${l[0]}</div><div>${l[1]}${l[2]?` <span class="tiny">· ${l[2]}</span>`:''}</div></div>`).join('')}</div>
+  <div style="margin-top:14px">${verCard()}</div>
   <p class="tiny" style="margin-top:24px">줄거리 요약은 공개된 정보를 바탕으로 직접 정리한 것이며, 해석이 갈리는 부분은 표시해 두었습니다.</p>`;
 }
 function vSettings(){
@@ -330,10 +363,11 @@ function vRead(id){
 let npSong = null;
 state.lyrSize = LS.get('lyrSize', 1); state.imm = false;
 function lyrOf(id){
-  const L = state.lyrics[id] || {};
+  let L = state.lyrics[id] || {}; let borrowed = null;
+  const o = SONGS[id]?.orig; if (o && !L.jp && !L.kr){ const OL = state.lyrics[o]; if (OL && (OL.jp || OL.kr)){ L = { jp:OL.jp, kr:OL.kr, times:L.times, offset:L.offset }; borrowed = o; } }
   const jp = (L.jp||'').replace(/\r/g,'').split('\n'), kr = (L.kr||'').replace(/\r/g,'').split('\n');
   const n = Math.max(L.jp ? jp.length : 0, L.kr ? kr.length : 0);
-  return { L, jp, kr, n, times: L.times || [], off: L.offset || 0 };
+  return { L, jp, kr, n, times: L.times || [], off: L.offset || 0, borrowed };
 }
 const hasSync = id => (state.lyrics[id]?.times || []).some(t => t != null);
 const nextNB = (jp, i) => { for (let j=Math.max(0,i); j<jp.length; j++) if ((jp[j]||'').trim()) return j; return -1; };
@@ -381,6 +415,7 @@ function npBody(s){
     const a = ALB[s.album]; const q = encodeURIComponent('ヨルシカ '+baseTitle(s.jp)); const sc = scenesOf(s.id);
     return `<div class="info"><dl><dt>한국어</dt><dd class="kr">${esc(s.kr)} <button class="btn sm" data-act="rensong" data-id="${s.id}">${ic('edit')} 고치기</button> <button class="btn sm" data-act="mtone" data-id="${s.id}">자동 번역</button></dd><dt>일본어</dt><dd class="jp">${esc(s.jp)}</dd><dt>앨범</dt><dd>${esc(a.kr)} <span class="jp muted">${esc(a.jp)}</span></dd><dt>트랙</dt><dd>${s.no} / ${a.tracks.length}${s.inst?' · 연주곡':''}</dd><dt>발매</dt><dd>${a.date}</dd><dt>음원</dt><dd>${state.hasAudio.has(s.id)?'연결됨 ✓':'없음'}</dd><dt>가사 싱크</dt><dd>${hasSync(s.id)?`있음 ✓ (${times.filter(t=>t!=null).length}줄)`:'없음'}</dd></dl>
       ${noteOf(s)?`<div class="note">${esc(noteOf(s))}</div>`:''}
+      ${(()=>{ const vs = versionsOf(s.id); return vs.length ? `<div class="scn"><div class="tiny" style="margin-bottom:8px">이 곡의 다른 버전</div>${vs.map(x=>`<button class="scn-l" data-chip="${x}"><span class="jp">${SONGS[x].live?'LIVE':SONGS[x].rr?'再':'原'}</span>${esc(ALB[SONGS[x].album].kr)} · ${ALB[SONGS[x].album].date}${state.hasAudio.has(x)?' ▶':''}</button>`).join('')}</div>` : ''; })()}
       ${sc.length?`<div class="scn"><div class="tiny" style="margin-bottom:8px">이 곡이 나오는 이야기</div>${sc.map(x=>`<button class="scn-l" data-go="#/read/${x.arc}#sc-${x.arc}-${x.i}"><span class="jp">${'一二三四五六七八九十'[x.i]||x.i+1}</span>${esc(STORY.arcs.find(a=>a.id===x.arc).title)} · ${esc(x.t)} →</button>`).join('')}</div>`:''}
       <div class="links"><label class="btn">${ic('music')} 음원 연결<input type="file" accept="audio/*" data-link="${s.id}" hidden></label>${state.hasAudio.has(s.id)?`<button class="btn" data-act="unlink" data-id="${s.id}">${ic('trash')} 연결 해제</button>`:''}
         <a class="btn" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${q}">${ic('link')} YouTube</a><a class="btn" target="_blank" rel="noopener" href="https://open.spotify.com/search/${q}">${ic('link')} Spotify</a></div></div>`;
@@ -388,13 +423,14 @@ function npBody(s){
   if (tab==='sync') return syncBody(s);
   /* 가사 */
   if (s.inst) return `<div class="lyr-empty"><div class="big">〜</div>가사가 없는 연주곡이에요.<br>소리에 귀를 기울여 보세요.</div>`;
-  if (!L.jp && !L.kr) return `<div class="lyr-empty"><div class="big">詞</div>아직 저장된 가사가 없어요.<br>'가사 편집'에 일본어 원문과 한국어 번역을 붙여 넣으면<br>여기서 두 언어를 함께 볼 수 있어요.<br><br><button class="btn" data-np="edit">${ic('edit')} 가사 편집하기</button></div>`;
+  if (!L.jp && !L.kr) return `<div class="lyr-empty"><div class="big">詞</div>${s.orig?`원곡 「${esc(ALB[SONGS[s.orig].album].kr)}」에도 아직 가사가 없어요.<br>원곡에 가사를 넣으면 이 버전에도 함께 보여요.<br><br>`:''}아직 저장된 가사가 없어요.<br>'가사 편집'에 일본어 원문과 한국어 번역을 붙여 넣으면<br>여기서 두 언어를 함께 볼 수 있어요.<br><br><button class="btn" data-np="edit">${ic('edit')} 가사 편집하기</button></div>`;
   const synced = hasSync(s.id); const mode = state.lyrMode; const live = synced && cur()===s.id;
+  const bor = lyrOf(s.id).borrowed; const borNote = bor ? `<div class="sync-bar" style="background:none;border:1px dashed var(--line)">${ic('book')} 원곡 「${esc(ALB[SONGS[bor].album].kr)}」의 가사를 보여 주고 있어요${s.live?' · 라이브 편곡과 다를 수 있어요':''}</div>` : '';
   const bar = synced ? `<div class="sync-bar"><span class="live-dot ${live?'on':''}"></span><span class="sb-t">${live?'재생에 맞춰 넘어가요 · 줄을 누르면 그 위치로':'싱크 가사 · 이 곡을 재생하면 따라 넘어가요'}</span><span class="tiny" style="white-space:nowrap">보정</span><button class="ibtn sm" data-act="off" data-d="-0.1">−</button><b id="offv" class="tiny" style="min-width:42px;text-align:center">${(off>0?'+':'')+off.toFixed(1)}s</b><button class="ibtn sm" data-act="off" data-d="0.1">+</button></div>`
     : `<div class="sync-bar">${ic('clock')} 싱크가 없어요<button class="btn sm" data-np="sync" style="margin-left:auto">싱크 만들기</button></div>`;
   if (mode==='focus'){
     if (!synced) return bar + `<div class="lyr-empty">집중 모드는 싱크 가사가 있을 때 앞뒤 줄을 크게 보여 줘요.<br>'싱크' 탭에서 탭 몇 번이면 만들 수 있어요.</div>`;
-    return bar + `<div class="focus" id="focus"><div class="fp"></div><div class="fc"></div><div class="fn"></div><div class="fn2"></div></div>`;
+    return borNote + bar + `<div class="focus" id="focus"><div class="fp"></div><div class="fc"></div><div class="fn"></div><div class="fn2"></div></div>`;
   }
   let h = '';
   for (let i=0;i<n;i++){
@@ -404,7 +440,7 @@ function npBody(s){
     if (mode==='kr'){ if(b) h += `<div class="ln"><div class="lkr" ${d}>${esc(b)}</div></div>`; continue; }
     h += `<div class="ln"><div class="ljp" ${d}>${esc(a)||'&nbsp;'}</div><div class="lkr" ${d}>${esc(b)||'&nbsp;'}</div></div>`;
   }
-  return bar + `<div class="lyr ${mode==='side'?'side':''} ${mode==='kr'?'only-kr':''} ${synced?'synced':''}">${h}<div style="height:30vh"></div></div>`;
+  return borNote + bar + `<div class="lyr ${mode==='side'?'side':''} ${mode==='kr'?'only-kr':''} ${synced?'synced':''}">${h}<div style="height:30vh"></div></div>`;
 }
 
 /* ---- 가사 싱크: 하이라이트 ---- */
@@ -637,16 +673,24 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* =================== 음원 가져오기 =================== */
 async function refreshAudio(){ if (NATIVE){ try{ state.hasAudio = new Set(JSON.parse(YoruNative.listFiles()).filter(x=>SONGS[x])); }catch(e){ state.hasAudio = new Set(); } return; } try{ const k = await IDB.keys(); state.hasAudio = new Set(k.filter(x=>SONGS[x])); }catch(e){ state.hasAudio = new Set(); } }
+const LIVE_HINT = /live|ライブ|라이브|\blv\b/i;
+const LIVE_KEYS = [['live-gekkou',/月光|gekkou|moonlight|월광/i],['live-zense24',/2024|2025/],['live-tsuki',/月と猫|猫|neko|cat|고양이/i],['live-tousaku',/盗作|tousaku|plagiar|도작|2026/i],['live-zense21',/前世|zense|전생|2021/i]];
 function matchFile(name){
-  const n = norm(name.replace(/\.[^.]+$/,'').replace(/^\s*\d{1,2}[\s.\-_)]+/,''));
-  if (!n) return null;
+  const raw = name.replace(/\.[^.]+$/,'');
+  const isLive = LIVE_HINT.test(raw);
+  let pool = ORDER.filter(id => !ALB[SONGS[id].album].live), cleaned = raw;
+  if (isLive){
+    const hit = LIVE_KEYS.find(([, re]) => re.test(raw));
+    pool = ORDER.filter(id => hit ? SONGS[id].album===hit[0] : ALB[SONGS[id].album].live).reverse();
+    cleaned = raw.replace(/[\(\[（【「][^\)\]）】」]*(live|ライブ|라이브)[^\)\]）】」]*[\)\]）】」]/gi,'').replace(LIVE_HINT,'');
+    if (hit) cleaned = cleaned.replace(hit[1],'');
+  }
+  const n = norm(cleaned.replace(/^\s*\d{1,2}[\s.\-_)]+/,'')); if (!n) return null;
   const rr = /re-?recording/i.test(name);
   let best = null, bl = 0;
-  for (const id of ORDER){ const s = SONGS[id]; const t = norm(s.jp);
-    if (!t) continue;
+  for (const id of pool){ const s = SONGS[id]; const t = norm(s.jp); if (!t) continue;
     const exact = n===t; const inc = n.includes(t);
-    if (exact || inc){ let score = t.length + (exact?100:0) + ((/Re-Recording/.test(s.jp))===rr?50:0); if (score>bl){ bl=score; best=id; } }
-  }
+    if (exact || inc){ const score = t.length + (exact?100:0) + ((/Re-Recording/.test(s.jp))===rr?50:0); if (score>bl){ bl=score; best=id; } } }
   return best;
 }
 let lastImport = '';
