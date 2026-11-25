@@ -244,9 +244,9 @@ window.addEventListener('hashchange', render);
 function trackRow(id, i, ctx){
   const s = SONGS[id]; const fav = state.favs.has(id); const a = ALB[s.album];
   return `<div class="tr" data-id="${id}" data-ctx="${esc(ctx)}" data-i="${i}">
-    <div class="n">${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search' ? `<div class="art" style="width:34px;height:34px;border-radius:5px;overflow:hidden">${art(s.album)}</div>` : s.no}</div>
+    <div class="n">${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search'||ctx==='search-rec' ? `<div class="art" style="width:34px;height:34px;border-radius:5px;overflow:hidden">${art(s.album)}</div>` : s.no}</div>
     <div><div class="k">${esc(s.kr)}${state.hasAudio.has(id)?'<span class="dot" title="음원 있음"></span>':(extOn() && streamable(id))?`<span class="dot yt" title="${esc(extName())}에서 재생"></span>`:ytOf(id)?'<span class="dot yt" title="YouTube 공식 영상으로 재생"></span>':''}${s.inst?' <span class="chip">연주곡</span>':''}${s.isNew?' <span class="chip new">NEW</span>':''}${s.untr?' <span class="chip">번역 전</span>':''}${s.auto?' <span class="chip">자동 번역</span>':''}</div>
-      <div class="jj">${esc(s.jp)}${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search' ? ' · '+esc(a.kr):''}</div></div>
+      <div class="jj">${esc(s.jp)}${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search'||ctx==='search-rec' ? ' · '+esc(a.kr):''}</div></div>
     <div class="m">${ctx.startsWith('pl:') ? `<button class="ibtn" data-act="mvup" title="위로">${ic('up')}</button><button class="ibtn" data-act="mvdn" title="아래로">${ic('down')}</button><button class="ibtn" data-act="rm" title="빼기">${ic('x')}</button>` : ''}
       <button class="ibtn ${fav?'on':''}" data-act="fav" title="좋아요">${ic(fav?'heartF':'heart')}</button>
       <button class="ibtn" data-act="add" title="플레이리스트에 추가">${ic('plus')}</button></div>
@@ -263,12 +263,13 @@ function ctxList(ctx){
 function vHome(){
   const day = Math.floor(Date.now()/864e5); const pick = ORDER.filter(id=>!SONGS[id].inst)[day*7919 % ORDER.filter(id=>!SONGS[id].inst).length]; const ps = SONGS[pick];
   const h = new Date().getHours(); const greet = h<5?'아직 잠들지 못한 밤이네요':h<11?'좋은 아침, 여름 냄새가 나요':h<17?'구름이 천천히 흘러가는 오후':h<20?'노을이 지는 시간':'밤에만 피는 노래들';
-  const rec = state.recent.filter(id=>SONGS[id]).slice(0,6);
+  const rec = state.recent.filter(id=>SONGS[id]).slice(0,5);
   return `<section class="hero card"><div class="line">YORUSHIKA · 夜しか</div>
       <div><h1>${greet}</h1><p>앨범 아홉 갈래, ${ORDER.length}곡. 편지와 여름과 달의 이야기를 한 곳에 모았습니다.</p>
       <div class="card today" data-go="song:${pick}"><div class="art">${art(ps.album)}</div><div><div class="tiny">오늘의 한 곡 · 今日の一曲</div><div class="kr" style="font-weight:700;font-size:17px">${esc(ps.kr)}</div><div class="jp muted" style="font-size:13px">${esc(ps.jp)} — ${esc(ALB[ps.album].kr)}</div></div></div></div>
       <div class="vt">ヨルシカ</div></section>
-    ${rec.length?`<div class="sec-t"><h2>최근 들은 곡</h2><span>最近</span></div><div class="card tl">${rec.map((id,i)=>trackRow(id,i,'search-rec')).join('')}</div>`:''}
+    ${rec.length?`<div class="sec-t"><h2>최근 들은 곡</h2><span>最近</span></div><div class="card tl rec ${state.recOpen?'open':''}">${rec.map((id,i)=>i ? trackRow(id,i,'search-rec').replace('class="tr"','class="tr rec-x"') : trackRow(id,i,'search-rec')).join('')}
+      ${rec.length>1?`<button class="rec-tog" data-act="recmore" aria-expanded="${state.recOpen?'true':'false'}" title="${state.recOpen?'접기':'최근 5곡 보기'}">${ic('down',2)}<span>${state.recOpen?'접기':`${rec.length-1}곡 더 보기`}</span></button>`:''}</div>`:''}
     <div class="sec-t"><h2>앨범</h2><span>ディスコグラフィ</span></div>${shelf()}
     <div class="sec-t"><h2>라이브</h2><span>ライブ</span></div>${shelf(ALBUMS.filter(a=>a.live))}
     <div class="sec-t"><h2>이야기 지도</h2><span>物語</span></div>
@@ -1231,6 +1232,8 @@ document.addEventListener('click', e => {
     if (a==='rep'){ state.repeat = {off:'all',all:'one',one:'off'}[state.repeat]; LS.set('repeat',state.repeat); if (NATIVE){ try{ YoruNative.setRepeat(state.repeat); YoruNative.extSetRepeat(state.repeat); }catch(e){} } toast({off:'반복 끔',all:'전체 반복',one:'한 곡 반복'}[state.repeat]); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
     if (a==='closenp') return closeNP();
     if (a==='ytnp') return openNP();
+    if (a==='recmore'){ state.recOpen = !state.recOpen; const box = act.closest('.rec'); box.classList.toggle('open', state.recOpen); act.setAttribute('aria-expanded', state.recOpen); const n = box.querySelectorAll('.rec-x').length;
+      act.querySelector('span').textContent = state.recOpen ? '접기' : `${n}곡 더 보기`; act.title = state.recOpen ? '접기' : '최근 5곡 보기'; return; }
     if (a==='covers') return fetchCovers(true);
     if (a==='extperm'){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('목록에서 「요루시카 서재」를 켜고 돌아와 주세요'); return; }
     if (a==='extapp'){ LS.set('extApp', act.dataset.pkg); if (state.mode==='ext'){ try{ YoruNative.extStopQueue(); }catch(e){} } toast(`${extName()}(으)로 연동해요`); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
