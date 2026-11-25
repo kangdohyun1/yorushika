@@ -445,7 +445,7 @@ function vSettings(){
     <p class="tiny" style="margin:12px 0 0">· 화면을 끄거나 앱을 나가면 멈춰요. YouTube 정책상 백그라운드 재생이 안 되고, 잠금화면·버즈 조작도 음원 파일로 들을 때만 돼요.<br>· 영상이 없는 곡은 곡 정보 → 'YouTube 링크 직접 연결'에 주소를 붙여 넣으면 돼요. 공연 전체 영상이 있는 라이브는 '공연 전체 영상에서 이 곡 찾기'로 구간을 맞출 수 있어요.<br>· claude.ai 미리보기 화면에서는 YouTube가 막혀 있어요. 설치한 앱이나 웹 주소에서 열면 동작합니다.</p></div>`; })()}
   ${(()=>{ if (!NATIVE) return `<div class="card set"><h3>스트리밍 앱 연동</h3><p>Spotify·YouTube Music으로 재생하고, 그 앱에서 듣는 곡의 가사·이야기를 이 앱에서 따라 보여 주는 기능이에요. 다른 앱의 재생 정보를 읽어야 해서 안드로이드 앱(APK)에서만 쓸 수 있어요.</p></div>`;
     const apps = extApps();
-    const acc = !!extInfo.access, pref = LS.get('srcPref','auto') === 'yt' ? 'yt' : 'ext', fol = LS.get('extFollow', true), cur0 = extPkg();
+    const acc = !!extInfo.access, pref = LS.get('srcPref','auto') === 'ext' ? 'ext' : 'yt', fol = LS.get('extFollow', true), cur0 = extPkg();
     return `<div class="card set" id="extCard"><h3>스트리밍 앱 연동</h3><p>음원 파일이 없는 곡을 Spotify·YouTube Music 같은 앱으로 재생하고, 그 앱에서 듣는 요루시카 곡의 가사와 이야기를 여기서 따라 보여 줘요. 소리는 그 앱이 내기 때문에 화면을 꺼도, 앱을 나가도 계속 재생되고 잠금화면·버즈 조작도 그 앱 그대로 돼요.</p>
     <div class="upd-row">${acc ? '<span class="chip">알림 접근 허용됨 ✓</span>' : `<button class="btn pri" data-act="extperm">${ic('clock')} 알림 접근 권한 켜기</button>`}
       ${apps.length ? apps.map(a=>`<button class="btn sm ${a.pkg===cur0?'pri':''}" data-act="extapp" data-pkg="${esc(a.pkg)}">${esc(a.label)}${a.pkg===cur0?' ✓':''}</button>`).join('') : '<span class="tiny">Spotify나 YouTube Music이 설치돼 있지 않아요</span>'}
@@ -823,7 +823,8 @@ const extApps = () => { if (NATIVE){ try{ EXT_INST = JSON.parse(YoruNative.extAp
 const extPkg = () => { const pick = LS.get('extApp', ''); if (pick && EXT_INST.some(a=>a.pkg===pick)) return pick; const sp = EXT_INST.find(a=>a.pkg==='com.spotify.music'); return (sp || EXT_INST[0] || {pkg: pick || 'com.spotify.music'}).pkg; };
 const extName = () => EXT_APPS[extPkg()] || '연동 앱';
 /* 기본값 'auto': 권한이 있고 연동 앱이 깔려 있으면 YouTube보다 연동 앱을 먼저 쓴다 */
-const extOn = () => NATIVE && LS.get('srcPref', 'auto') !== 'yt' && !!extInfo.access && EXT_INST.some(a=>a.pkg===extPkg());
+/* Spotify가 외부 앱의 곡 지정 재생 요청을 무시하는 경우가 많아, 이제는 직접 켠 경우에만 연동 앱으로 재생 */
+const extOn = () => NATIVE && LS.get('srcPref', 'auto') === 'ext' && !!extInfo.access && EXT_INST.some(a=>a.pkg===extPkg());
 /* 스트리밍에 있는 곡: 라이브 영상 작품만 제외(『幻燈』은 25곡판이 스트리밍에 있음) */
 const streamable = id => { const s = SONGS[id]; return !!s && !s.live; };
 const extQuery = id => { const s = SONGS[id]; return baseTitle(s.jp) + (s.rr ? ' Re-Recording' : '') + ' ヨルシカ'; };
@@ -997,6 +998,7 @@ function extPoll(){
   const id = extMatch(st.title, st.artist, st.album), E = extEng;
   if (audio.eng === extEng){
     if (Date.now() - extReqAt < 5000 && id !== cur()) return;      // 요청한 곡으로 바뀌기 전
+    if (q && q.active && !q.confirmed && id !== cur()) return;      // 요청한 곡이 아직 안 나옴 — 예전 곡으로 되돌아가지 않음
     const wasP = E._p; extForeign = !id;
     if (!id) return;                                                 // 요루시카가 아닌 곡: 표시는 그대로 둔다
     E._t = (st.pos||0)/1000; E._at = performance.now(); E._d = st.dur > 0 ? st.dur/1000 : NaN; E._p = !st.playing;
