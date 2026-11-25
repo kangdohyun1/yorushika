@@ -420,3 +420,5 @@ table.keys td{padding:8px 12px}
 #ytBox.art .ytb{display:none}
 @media (max-width:820px){#ytBox.mini{right:10px;bottom:calc(var(--player-h) + var(--tab-h) + env(safe-area-inset-bottom) + 14px);width:206px;height:234px}#ytBox.mini.left{left:10px}#ytBox .ytb{padding:3px 2px 3px 8px}}
 .ytm{font:600 10px/1 var(--kr);letter-spacing:.04em;color:var(--accent);border:1px solid currentColor;border-radius:4px;padding:1px 4px;margin-right:2px;vertical-align:1px}
+.segbox{margin-top:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px}
+.segbox .upd-row{margin-top:8px}

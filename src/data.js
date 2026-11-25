@@ -298,3 +298,14 @@ const YT_LIST = {
 };
 /* 공식 YouTube 음원이 없는 이유 — 곡 정보에 안내 */
 const YT_NOTE = { gentou:'음악 화집 『幻燈』 실물로만 공개된 곡이라 공식 YouTube 음원이 없어요(디지털판은 10곡)' };
+/* 공식 라이브 영상 — 앨범 id → 곡 제목 → 'ID' 또는 [ID, 시작초, 끝초, 이어서 나오는 다음 곡, 'est'(구간 추정)] */
+const YT_LIVE = {
+  'live-zense21': { '花人局':['Ht6lcYg9Zfo',0,0,'春泥棒'] },
+  'live-gekkou':  { '歩く':['OuSFM2l9OaI',0,0,'心に穴が空いた'], 'ノーチラス':'m2xmJFdYfJw' },
+  'live-tsuki':   { '斜陽':'IFccpKsUUL8', 'アルジャーノン':['5Of2HNJa_gs',6930,0,'','est'] },
+  'live-zense24': { '負け犬にアンコールはいらない':['6Ba8yghj_NY',0,0,'言って。'], '晴る':'YmvAXVmfK0A',
+                    'ルバート':['Rl1xfaXlrxw',2412,2659,'','est'], '雨とカプチーノ':['Rl1xfaXlrxw',2659,2946,'','est'], '冬眠':['Rl1xfaXlrxw',5260,5674,'','est'] },
+  'live-tousaku': { '昼鳶':'6-YdwCEmPro' }
+};
+/* 공연 전체가 공식 채널에 올라온 작품 — 곡 정보의 '구간 맞추기'로 나머지 곡도 연결할 수 있다 */
+const YT_FULL = { 'live-zense24':'Rl1xfaXlrxw', 'live-tsuki':'5Of2HNJa_gs' };
