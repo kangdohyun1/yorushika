@@ -1797,6 +1797,9 @@ class YTEngine extends EventTarget {
     await this.load();
     if (this.cur !== src) return;
     const s = Math.max(0, Math.floor(this.off + (start || 0)));
+    clearTimeout(this._wd); this._started = false;
+    if (autoplay) this._wd = setTimeout(() => { if (this.cur === src && !this._started && !this.lastErr && !this._userPause) this._error('stall'); }, 12000);
+    this._userPause = false;
     if (src.list){ const o = { list:src.list, listType:'playlist', index:src.index, startSeconds:s }; autoplay ? this.p.loadPlaylist(o) : this.p.cuePlaylist(o); }
     else { const o = { videoId:src.v, startSeconds:s }; if (this.end > s) o.endSeconds = this.end; autoplay ? this.p.loadVideoById(o) : this.p.cueVideoById(o); }
     this._tick();
@@ -1805,6 +1808,7 @@ class YTEngine extends EventTarget {
   _state(st){
     if (!this.cur) return;
     if (st === 1){
+      this._started = true; clearTimeout(this._wd);
       if (this.cur.list && !this._armed){ try{ if (this.p.getPlaylistIndex() === this.cur.index) this._armed = true; }catch(e){} }
       this._meta(); const d = this.duration; if (isFinite(d) && d !== this._dur){ this._dur = d; this.dispatchEvent(new Event('loadedmetadata')); }
       if (this._p){ this._p = false; this.dispatchEvent(new Event('play')); }
@@ -1820,7 +1824,7 @@ class YTEngine extends EventTarget {
     this.dispatchEvent(new Event('timeupdate'));
     if (!this._p) this._timer = setTimeout(() => this._tick(), 250);
   }
-  _error(code){ this.lastErr = code; this._p = true; clearTimeout(this._timer); this.dispatchEvent(new Event('error')); }
+  _error(code){ this.lastErr = code; this._p = true; clearTimeout(this._timer); clearTimeout(this._wd); this.dispatchEvent(new Event('error')); }
   /* raw = 영상 속 실제 위치, currentTime/duration = 곡 구간 기준(공연 전체 영상에서 한 곡만 잘라 들을 때) */
   get raw(){ if (!this.p || !this.cur) return 0; let t = 0; try{ t = this.p.getCurrentTime() || 0; }catch(e){}
     const now = performance.now(); if (t !== this._lt){ this._lt = t; this._la = now; }
@@ -1832,8 +1836,8 @@ class YTEngine extends EventTarget {
   get paused(){ return this._p; }
   get volume(){ return this._vol; } set volume(v){ this._vol = v; try{ this.p && this.p.setVolume(Math.round(v*100)); }catch(e){} }
   play(){ try{ this.p && this.p.playVideo(); }catch(e){} return Promise.resolve(); }
-  pause(){ try{ this.p && this.p.pauseVideo(); }catch(e){} }
-  stop(){ try{ this.p && this.p.stopVideo(); }catch(e){} clearTimeout(this._timer); const was = !this._p; this._p = true; this.cur = null; this.title = ''; if (was) this.dispatchEvent(new Event('pause')); }
+  pause(){ this._userPause = true; try{ this.p && this.p.pauseVideo(); }catch(e){} }
+  stop(){ try{ this.p && this.p.stopVideo(); }catch(e){} clearTimeout(this._timer); clearTimeout(this._wd); const was = !this._p; this._p = true; this.cur = null; this.title = ''; if (was) this.dispatchEvent(new Event('pause')); }
   url(){ const c = this.cur; if (!c) return 'https://www.youtube.com/@nbuna'; if (this.vid) return 'https://www.youtube.com/watch?v=' + this.vid + (c.list ? '&list=' + c.list : '') + (this.off ? '&t=' + Math.floor(this.off) : ''); return 'https://www.youtube.com/watch?list=' + c.list + '&index=' + (c.index + 1); }
 }
 /* 스트리밍 앱 연동 엔진 — 소리는 Spotify·YouTube Music 등이 내고, 여기서는 그 앱의 재생 상태를 비춘다(안드로이드 앱 전용) */
@@ -1924,9 +1928,10 @@ let ytFails = 0;
 audio.addEventListener('meta', () => { ytFails = 0; positionYT(); const e = $('#ytNow'); if (e) e.textContent = ytEng.title; });
 audio.addEventListener('error', () => {
   if (audio.eng !== ytEng) return; const id = cur(), s = SONGS[id]; const c = ytEng.lastErr; ytFails++;
-  toast(`「${s ? s.kr : ''}」 ${c===101||c===150 ? '영상은 앱 안 재생이 막혀 있어요' : c===100 ? '영상을 찾을 수 없어요' : '영상을 재생하지 못했어요'} — ↗ 버튼으로 YouTube에서 열 수 있어요`);
+  toast(`「${s ? s.kr : ''}」 ${c===101||c===150 ? '영상은 앱 안 재생이 막혀 있어요' : c===100 ? '영상을 찾을 수 없어요' : c==='stall' ? '영상이 12초 동안 시작되지 않아요' : '영상을 재생하지 못했어요'} — ↗ 버튼으로 YouTube에서 열 수 있어요`);
   updateBar();
-  if (ytFails < 3 && state.qi < state.queue.length - 1) setTimeout(() => { if (cur() === id && audio.eng === ytEng && ytEng.lastErr) next(true); }, 2600);
+  if (ytFails < 4 && state.qi < state.queue.length - 1) setTimeout(() => { if (cur() === id && audio.eng === ytEng && ytEng.lastErr) next(true); }, 2600);
+  else if (ytFails >= 4) setTimeout(() => toast('영상이 연속으로 재생되지 않아 멈췄어요 — 인터넷 연결을 확인하거나 다른 곡을 눌러 주세요'), 2800);
 });
 window.yoruBg = () => { if (audio.eng === ytEng && !audio.paused) audio.pause(); saveSession(); };
 let curURL = null;
@@ -1935,7 +1940,7 @@ async function loadAndPlay(startAt=0, autoplay=true){
   const id = cur(); if (!id) return;
   if (state.mode === 'ext'){
     if (!NATIVE) { state.mode = 'yt'; return loadAndPlay(startAt, autoplay); }
-    audio.use(extEng); loadedId = id; if (autoplay) extReqAt = Date.now();
+    audio.use(extEng); loadedId = id; if (autoplay){ extReqAt = Date.now(); extSkipSeen = 0; extGave = false; }
     const items = state.queue.map(x => ({ id:x, q:extQuery(x), key:norm(SONGS[x].jp), title:baseTitle(SONGS[x].jp) }));
     let r = 'error'; try{ r = YoruNative.extSetQueue(JSON.stringify(items), state.qi, state.repeat, extPkg(), !!autoplay); }catch(e){}
     if (autoplay){ extEng._t = 0; extEng._at = performance.now(); extEng._d = NaN; extEng._p = false; extEng.dispatchEvent(new Event('play'));
@@ -1946,7 +1951,7 @@ async function loadAndPlay(startAt=0, autoplay=true){
     updateBar(); saveSession(); if (autoplay && $('#np').classList.contains('open')) { npSong = id; renderNP(); }
     return r === 'session' || r === 'intent' || r === 'ok';
   }
-  if (state.mode === 'yt' && !ytTemp && extOn() && streamable(id)){         // 예전 YouTube 대기열을 이어 들을 때도 연동 앱으로
+  if (state.mode === 'yt' && !ytTemp && !extOffQueue && extOn() && streamable(id)){         // 예전 YouTube 대기열을 이어 들을 때도 연동 앱으로
     const q = state.queue.filter(streamable); state.queue = q; state.qi = Math.max(0, q.indexOf(id)); state.mode = 'ext'; return loadAndPlay(startAt, autoplay);
   }
   if (state.mode === 'yt' && autoplay && NATIVE && !extOn() && streamable(id) && EXT_INST.length && !sessionStorage.getItem('extHint')){
@@ -2015,11 +2020,26 @@ function nativePoll(){
 }
 if (NATIVE) setInterval(nativePoll, 250);
 /* 연동 앱 상태 읽기: 지금 곡·위치를 비추고, 요루시카 곡을 듣고 있으면 따라간다 */
-let extReqAt = 0, extForeign = false;
+let extReqAt = 0, extForeign = false, extSkipSeen = 0, extGave = false, extOffQueue = false;
+/* 연동 앱이 연속으로 곡을 틀지 못함 → 같은 대기열을 YouTube 공식 영상으로 이어서 */
+function extFallback(atId){
+  const c = atId && state.queue.includes(atId) ? atId : cur();
+  const rest = state.queue.slice(Math.max(0, state.queue.indexOf(c)));
+  const q = rest.filter(x => !!ytOf(x));
+  try{ YoruNative.extStopQueue(); }catch(e){}
+  if (!q.length){ toast(`${extName()}에서 재생되지 않아요 — 연동 앱을 한 번 열어 둔 뒤 다시 눌러 주세요`); audio.use(localEng); updateBar(); return; }
+  toast(`${extName()}에서 재생되지 않아 YouTube 공식 영상으로 이어서 틀어요`);
+  extOffQueue = true; state.mode = 'yt'; state.queue = q; state.qi = 0; ytFails = 0; loadAndPlay();
+}
 function extPoll(){
   let st; try{ st = JSON.parse(YoruNative.extState()); }catch(e){ return; }
   const had = !!extInfo.access; extInfo = st || { access:false };
   if (had !== !!extInfo.access && /^#\/settings/.test(location.hash) && !$('#np').classList.contains('open')){ const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; }
+  const q = st && st.q;
+  if (q && audio.eng === extEng && Date.now() - extReqAt > 1500){
+    if (q.skipped > extSkipSeen){ extSkipSeen = q.skipped; toast(`${extName()}이(가) 곡을 틀지 않아 다음 곡으로 넘겼어요`); }
+    if (q.gaveUp && !extGave){ extGave = true; extFallback(q.id); return; }
+  }
   if (!st || !st.title) return;
   const id = extMatch(st.title, st.artist, st.album), E = extEng;
   if (audio.eng === extEng){
@@ -2051,6 +2071,7 @@ function playQueue(ids, start=0, shuf=false){
   let first = ok(f0) ? f0 : q[0];
   if (shuf){ q = q.sort(()=>Math.random()-.5); first = q[0]; }
   if (mode === 'yt') ytFails = 0;
+  extOffQueue = false;
   state.mode = mode; state.queue = q; state.qi = q.indexOf(first); state.shuffle = shuf; LS.set('shuffle', shuf); loadAndPlay();
 }
 function playOne(id, ctxIds){

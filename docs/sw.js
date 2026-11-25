@@ -1,4 +1,4 @@
-const C='yoru-v8';
+const C='yoru-v9';
 const ART=['natsukusa','makeinu','dakara','elma','tousaku','sousaku','gentou','nininshou','singles','live-zense21','live-gekkou','live-tsuki','live-zense24','live-tousaku'].map(a=>'art/'+a+'.png');
 const CORE=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png',...ART];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(CORE)));self.skipWaiting()});

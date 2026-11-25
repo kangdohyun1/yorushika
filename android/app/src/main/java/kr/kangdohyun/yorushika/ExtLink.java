@@ -48,7 +48,8 @@ public class ExtLink extends NotificationListenerService {
 
     static final List<Item> queue = new ArrayList<>();
     static int qi = -1;
-    static boolean qActive = false, confirmed = false, failCounted = false, earlyFired = false;
+    static boolean qActive = false, confirmed = false, failCounted = false, earlyFired = false, retried = false, gaveUp = false;
+    static int skipped = 0;
     static String repeat = "off", target = "com.spotify.music", lastKey = "";
     static long reqAt = 0, lastPos = 0, lastDur = 0;
     static int fails = 0;
@@ -205,26 +206,38 @@ public class ExtLink extends NotificationListenerService {
         }
     }
 
-    /** 0.5초마다: 위치 기록, 곡이 끝나기 직전이면 다음 곡을 미리 요청 */
+    /** 0.5초마다: 위치 기록, 요청한 곡이 실제로 나오는지 확인, 곡이 끝나기 직전이면 다음 곡을 미리 요청
+        연동 앱이 요청을 무시하면 → 1차: 앱을 직접 열어 다시 요청 → 2차: 그 곡은 건너뜀 → 3곡 연속 실패: 포기(웹앱이 YouTube로 넘김) */
     void step() {
         MediaController c = ctl;
-        if (c == null) return;
-        long d = dur(c), p = pos(c);
-        lastPos = p; lastDur = d;
-        PlaybackState ps = c.getPlaybackState();
-        boolean playing = ps != null && ps.getState() == PlaybackState.STATE_PLAYING;
-        synchronized (L) {
-            if (!qActive) return;
-            long since = System.currentTimeMillis() - reqAt;
-            if (!confirmed && since > 6000 && !failCounted) {
-                failCounted = true;
-                if (++fails >= 3) { qActive = false; return; }           // 검색 재생이 계속 실패하면 관리 중단
-            }
-            if (playing && confirmed && d > 10000 && p >= d - 900 && !earlyFired && since > 6000) {
-                earlyFired = true;
-                advance();
-            }
+        long d = 0, p = 0; boolean playing = false; String key = "";
+        if (c != null) {
+            d = dur(c); p = pos(c); lastPos = p; lastDur = d;
+            PlaybackState ps = c.getPlaybackState();
+            playing = ps != null && ps.getState() == PlaybackState.STATE_PLAYING;
+            key = norm(str(c.getMetadata(), MediaMetadata.METADATA_KEY_TITLE));
         }
+        int retry = -1, jump = -1; boolean adv = false;
+        synchronized (L) {
+            if (!qActive || qi < 0 || qi >= queue.size()) return;
+            long since = System.currentTimeMillis() - reqAt;
+            if (!confirmed && playing && match(key, queue.get(qi).key)) { confirmed = true; fails = 0; }   // 같은 곡이 이미 떠 있어 메타데이터 변경이 없을 때
+            if (!confirmed && since > (retried ? 10000 : 7000)) {
+                if (!retried) retry = qi;
+                else {
+                    if (++fails >= 3) { qActive = false; gaveUp = true; return; }
+                    skipped++;
+                    int n = qi + 1;
+                    if (n < queue.size()) jump = n;
+                    else if ("all".equals(repeat)) jump = 0;
+                    else { qActive = false; gaveUp = true; return; }
+                }
+            }
+            if (playing && confirmed && d > 10000 && p >= d - 900 && !earlyFired && since > 6000) { earlyFired = true; adv = true; }
+        }
+        if (retry >= 0) play(this, retry, true);
+        else if (jump >= 0) play(this, jump, false);
+        else if (adv) advance();
     }
 
     void advance() {
@@ -247,11 +260,15 @@ public class ExtLink extends NotificationListenerService {
     }
 
     /** i번째 곡 재생 요청. 반환: session(앱 안에서 바로) / intent(앱을 열어 재생) / search(검색 화면) / noapp */
-    static String play(Context cx, int i) {
+    static String play(Context cx, int i) { return play(cx, i, false); }
+
+    /** force: 세션 명령이 무시됐을 때 — 앱을 직접 열어 검색 재생을 요청 */
+    static String play(Context cx, int i, boolean force) {
         Item it;
         synchronized (L) {
             if (i < 0 || i >= queue.size()) return "none";
-            qi = i; reqAt = System.currentTimeMillis(); confirmed = false; failCounted = false; earlyFired = false; qActive = true;
+            qi = i; reqAt = System.currentTimeMillis(); confirmed = false; failCounted = false; earlyFired = false; qActive = true; gaveUp = false;
+            retried = force;
             it = queue.get(i);
         }
         MediaController c = ctl;
@@ -260,7 +277,7 @@ public class ExtLink extends NotificationListenerService {
             if (s != null) s.pick(null);
             c = ctl;
         }
-        if (c != null && target.equals(c.getPackageName())) {
+        if (!force && c != null && target.equals(c.getPackageName())) {
             try { c.getTransportControls().playFromSearch(it.q, extras(it)); return "session"; } catch (Exception ignored) { }
         }
         PackageManager pm = cx.getPackageManager();
@@ -303,6 +320,7 @@ public class ExtLink extends NotificationListenerService {
             } catch (Exception e) { return "error"; }
             repeat = rep == null ? "off" : rep;
             if (pkg != null && !pkg.isEmpty()) target = pkg;
+            fails = 0; skipped = 0; gaveUp = false; retried = false;
             qi = Math.max(0, Math.min(index, queue.size() - 1));
             if (!playNow) { qActive = !queue.isEmpty(); confirmed = true; return "ok"; }
         }
@@ -379,6 +397,9 @@ public class ExtLink extends NotificationListenerService {
                 q.put("id", qi >= 0 && qi < queue.size() ? queue.get(qi).id : "");
                 q.put("confirmed", confirmed);
                 q.put("fails", fails);
+                q.put("retried", retried);
+                q.put("skipped", skipped);
+                q.put("gaveUp", gaveUp);
                 o.put("q", q);
             }
             return o.toString();
