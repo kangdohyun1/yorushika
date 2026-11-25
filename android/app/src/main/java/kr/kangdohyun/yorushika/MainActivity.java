@@ -417,6 +417,24 @@ public class MainActivity extends Activity {
             return ExtLink.setQueue(MainActivity.this, json, index, rep, pkg, play);
         }
         @JavascriptInterface public void extStopQueue() { ExtLink.stopQueue(); }
+        /** 앱 정보 화면 — APK로 설치한 앱은 여기 ⋮ 메뉴의 '제한된 설정 허용'을 먼저 해야 알림 접근을 켤 수 있다 */
+        @JavascriptInterface
+        public void extOpenAppInfo() {
+            try {
+                Intent i = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+            } catch (Exception ignored) { }
+        }
+
+        /** 플레이어를 닫을 때: 재생을 멈추고 알림도 내린다(마지막 대기열은 버즈 재개용으로 남김) */
+        @JavascriptInterface
+        public void stopAll() {
+            onCtl(() -> {
+                ctl.stop();
+                ctl.clearMediaItems();
+            });
+        }
         @JavascriptInterface public void extSetRepeat(String r) { ExtLink.setRepeat(r); }
         @JavascriptInterface public void extControl(String a, long ms) { ExtLink.control(a, ms); }
 

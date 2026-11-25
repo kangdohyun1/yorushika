@@ -438,6 +438,12 @@ table.keys td{padding:8px 12px}
 /* 공식 커버 */
 .awrap{position:relative;display:block;width:100%;height:100%}
 .awrap .ocov{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+/* 재생 중인 곡이 없으면(밀어서 닫은 뒤 포함) 모바일에서는 하단 플레이어를 숨긴다 */
+@media (max-width:820px){
+  body.noplayer{--player-h:0px}
+  body.noplayer #player{display:none}
+  #player{touch-action:pan-y}
+}
 </style>
 </head>
 <body>
@@ -1155,12 +1161,13 @@ function vSettings(){
     <div class="upd-row"><span class="chip">공식 영상·음원 ${c('mv')}곡</span><span class="chip">앨범 재생목록 ${c('list')}곡</span><span class="chip">직접 연결 ${c('user')}곡</span><span class="chip">연결 없음 ${c('')}곡</span><span class="chip">라이브 ${ORDER.filter(x=>SONGS[x].live && ytOf(x)).length}곡</span><button class="btn sm" data-act="ytside">작은 창 위치 바꾸기</button></div>
     <p class="tiny" style="margin:12px 0 0">· 화면을 끄거나 앱을 나가면 멈춰요. YouTube 정책상 백그라운드 재생이 안 되고, 잠금화면·버즈 조작도 음원 파일로 들을 때만 돼요.<br>· 영상이 없는 곡은 곡 정보 → 'YouTube 링크 직접 연결'에 주소를 붙여 넣으면 돼요. 공연 전체 영상이 있는 라이브는 '공연 전체 영상에서 이 곡 찾기'로 구간을 맞출 수 있어요.<br>· claude.ai 미리보기 화면에서는 YouTube가 막혀 있어요. 설치한 앱이나 웹 주소에서 열면 동작합니다.</p></div>`; })()}
   ${(()=>{ if (!NATIVE) return `<div class="card set"><h3>스트리밍 앱 연동</h3><p>Spotify·YouTube Music으로 재생하고, 그 앱에서 듣는 곡의 가사·이야기를 이 앱에서 따라 보여 주는 기능이에요. 다른 앱의 재생 정보를 읽어야 해서 안드로이드 앱(APK)에서만 쓸 수 있어요.</p></div>`;
-    let apps = []; try{ apps = JSON.parse(YoruNative.extApps()); }catch(e){}
-    const acc = !!extInfo.access, pref = LS.get('srcPref','yt'), fol = LS.get('extFollow', true), cur0 = extPkg();
+    const apps = extApps();
+    const acc = !!extInfo.access, pref = LS.get('srcPref','auto') === 'yt' ? 'yt' : 'ext', fol = LS.get('extFollow', true), cur0 = extPkg();
     return `<div class="card set" id="extCard"><h3>스트리밍 앱 연동</h3><p>음원 파일이 없는 곡을 Spotify·YouTube Music 같은 앱으로 재생하고, 그 앱에서 듣는 요루시카 곡의 가사와 이야기를 여기서 따라 보여 줘요. 소리는 그 앱이 내기 때문에 화면을 꺼도, 앱을 나가도 계속 재생되고 잠금화면·버즈 조작도 그 앱 그대로 돼요.</p>
     <div class="upd-row">${acc ? '<span class="chip">알림 접근 허용됨 ✓</span>' : `<button class="btn pri" data-act="extperm">${ic('clock')} 알림 접근 권한 켜기</button>`}
       ${apps.length ? apps.map(a=>`<button class="btn sm ${a.pkg===cur0?'pri':''}" data-act="extapp" data-pkg="${esc(a.pkg)}">${esc(a.label)}${a.pkg===cur0?' ✓':''}</button>`).join('') : '<span class="tiny">Spotify나 YouTube Music이 설치돼 있지 않아요</span>'}
       ${apps.some(a=>a.pkg===cur0) ? `<button class="btn sm" data-act="extopen">${ic('link')} ${esc(extName())} 열기</button>` : ''}</div>
+    ${acc ? `<div class="tiny" style="margin-top:10px">${extOn() ? `✓ 연동 중 — 음원 파일이 없는 곡은 ${esc(extName())}에서 재생돼요` : pref==='yt' ? '지금은 YouTube 공식 영상으로 재생하도록 돼 있어요' : '연동 앱이 설치돼 있지 않아요'}</div>` : `<div class="note" style="margin-top:12px"><b>권한 켜는 순서</b><br>① 위의 '알림 접근 권한 켜기' → 목록에서 「요루시카 서재」를 켜요.<br>② 회색으로 막혀 있거나 '제한된 설정' 창이 뜨면: APK로 설치한 앱이라 안드로이드가 막아 둔 거예요. 아래 '앱 정보 열기' → 오른쪽 위 ⋮ → <b>제한된 설정 허용</b>을 누른 뒤 ①을 다시 해 주세요.<br><button class="btn sm" data-act="extinfo" style="margin-top:8px">앱 정보 열기</button></div>`}
     <div class="tiny" style="margin:14px 0 6px">음원 파일이 없는 곡은</div>
     <div class="seg">${[['ext','연동 앱으로 재생'],['yt','YouTube 공식 영상으로']].map(([k,l])=>`<button data-srcpref="${k}" class="${pref===k?'on':''}">${l}</button>`).join('')}</div>
     <div class="upd-row" style="margin-top:12px"><button class="btn sm" data-act="extfollow">${fol?'✓ ':''}연동 앱에서 듣는 요루시카 곡 따라가기 ${fol?'켬':'끔'}</button></div>
@@ -1513,10 +1520,13 @@ const ytEng = new YTEngine(), extEng = new ExtEngine();
 const audio = new PlayerProxy([localEng, ytEng, extEng]); audio.volume = state.vol;
 /* ---- 스트리밍 앱 연동 설정·판정 ---- */
 const EXT_APPS = { 'com.spotify.music':'Spotify', 'com.google.android.apps.youtube.music':'YouTube Music', 'com.google.android.youtube':'YouTube', 'com.apple.android.music':'Apple Music' };
-let extInfo = { access:false };
-const extPkg = () => LS.get('extApp', 'com.spotify.music');
+let extInfo = { access:false }, EXT_INST = [];
+const extApps = () => { if (NATIVE){ try{ EXT_INST = JSON.parse(YoruNative.extApps()) || []; }catch(e){ EXT_INST = []; } } return EXT_INST; };
+/* 연동 앱: 고른 앱이 설치돼 있으면 그 앱, 아니면 설치된 앱 중 Spotify 우선 */
+const extPkg = () => { const pick = LS.get('extApp', ''); if (pick && EXT_INST.some(a=>a.pkg===pick)) return pick; const sp = EXT_INST.find(a=>a.pkg==='com.spotify.music'); return (sp || EXT_INST[0] || {pkg: pick || 'com.spotify.music'}).pkg; };
 const extName = () => EXT_APPS[extPkg()] || '연동 앱';
-const extOn = () => NATIVE && LS.get('srcPref', 'yt') === 'ext' && !!extInfo.access;
+/* 기본값 'auto': 권한이 있고 연동 앱이 깔려 있으면 YouTube보다 연동 앱을 먼저 쓴다 */
+const extOn = () => NATIVE && LS.get('srcPref', 'auto') !== 'yt' && !!extInfo.access && EXT_INST.some(a=>a.pkg===extPkg());
 /* 스트리밍에 있는 곡: 라이브 영상 작품과 幻燈 화집 전용곡은 제외 */
 const streamable = id => { const s = SONGS[id]; if (!s || s.live) return false; if (s.album === 'gentou') return YT_LIST.gentou.order.includes(s.jp); return true; };
 const extQuery = id => { const s = SONGS[id]; return baseTitle(s.jp) + (s.rr ? ' Re-Recording' : '') + ' ヨルシカ'; };
@@ -1594,6 +1604,12 @@ async function loadAndPlay(startAt=0, autoplay=true){
         noapp:`${extName()}이(가) 설치돼 있지 않아요 — 설정에서 연동 앱을 바꿔 주세요`, noaccess:'알림 접근 권한이 꺼져 있어요 — 설정 → 스트리밍 앱 연동', error:'연동 앱에 재생을 요청하지 못했어요' }[r] || `${extName()}에서 재생해요`); }
     updateBar(); saveSession(); if (autoplay && $('#np').classList.contains('open')) { npSong = id; renderNP(); }
     return r === 'session' || r === 'intent' || r === 'ok';
+  }
+  if (state.mode === 'yt' && !ytTemp && extOn() && streamable(id)){         // 예전 YouTube 대기열을 이어 들을 때도 연동 앱으로
+    const q = state.queue.filter(streamable); state.queue = q; state.qi = Math.max(0, q.indexOf(id)); state.mode = 'ext'; return loadAndPlay(startAt, autoplay);
+  }
+  if (state.mode === 'yt' && autoplay && NATIVE && !extOn() && streamable(id) && EXT_INST.length && !sessionStorage.getItem('extHint')){
+    sessionStorage.setItem('extHint', '1'); setTimeout(() => toast(`${extName()}(으)로 들으려면 설정 → 스트리밍 앱 연동에서 권한을 켜 주세요`), 2800);
   }
   if (state.mode === 'yt'){
     if (ytTemp && ytTemp.id !== id) ytTemp = null;
@@ -1732,8 +1748,34 @@ function updateBar(){
   $('#pPlay').innerHTML = ic(audio.paused?'play':'pause'); const np = $('#npPlay'); if (np) np.innerHTML = ic(audio.paused?'play':'pause'); const np2 = $('#npPlay2'); if (np2) np2.innerHTML = ic(audio.paused?'play':'pause');
   $('#pShuf').innerHTML = ic('shuf'); $('#pShuf').style.color = state.shuffle?'var(--accent)':''; $('#pRep').style.color = state.repeat!=='off'?'var(--accent)':''; $('#pRep').innerHTML = ic('rep')+(state.repeat==='one'?'<sup style="font-size:9px">1</sup>':'');
   if (s) document.title = `${s.kr} — ヨルシカ`;
+  document.body.classList.toggle('noplayer', !s);
   markPlaying();
 }
+/* 하단 플레이어를 옆이나 아래로 밀면 재생을 멈추고 닫는다 */
+function dismissPlayer(){
+  try{ if (!audio.paused) audio.pause(); }catch(e){}
+  if (audio.eng === ytEng) ytEng.stop();
+  if (audio.eng === extEng){ try{ YoruNative.extStopQueue(); }catch(e){} }
+  if (NATIVE){ try{ YoruNative.stopAll(); }catch(e){} }
+  state.queue = []; state.qi = -1; loadedId = null; LS.set('session', null);
+  positionYT(); updateBar(); toast('재생을 멈추고 닫았어요');
+}
+(function swipePlayer(){
+  const el = document.getElementById('player'); if (!el) return;
+  let x0 = 0, y0 = 0, dx = 0, dy = 0, on = false, dir = '';
+  el.addEventListener('touchstart', e => { if (!cur() || e.touches.length !== 1 || e.target.closest('input')) return; const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; dx = dy = 0; on = true; dir = ''; el.style.transition = 'none'; }, { passive:true });
+  el.addEventListener('touchmove', e => { if (!on) return; const t = e.touches[0]; dx = t.clientX - x0; dy = t.clientY - y0;
+    if (!dir && Math.hypot(dx, dy) > 10) dir = Math.abs(dx) > Math.abs(dy) ? 'x' : (dy > 0 ? 'y' : 'up');
+    if (dir === 'x') el.style.transform = `translateX(${dx}px)`, el.style.opacity = String(Math.max(.2, 1 - Math.abs(dx)/el.offsetWidth));
+    else if (dir === 'y') el.style.transform = `translateY(${Math.max(0, dy)}px)`, el.style.opacity = String(Math.max(.2, 1 - dy/120)); }, { passive:true });
+  const end = () => { if (!on) return; on = false; el.style.transition = 'transform .25s ease, opacity .25s ease';
+    const gone = (dir === 'x' && Math.abs(dx) > el.offsetWidth * 0.33) || (dir === 'y' && dy > 60);
+    if (gone){ el._swiped = Date.now(); el.style.transform = dir === 'x' ? `translateX(${dx > 0 ? '' : '-'}110%)` : 'translateY(140%)'; el.style.opacity = '0';
+      setTimeout(() => { dismissPlayer(); el.style.transition = 'none'; el.style.transform = ''; el.style.opacity = ''; }, 230); }
+    else { if (dir) el._swiped = Date.now(); el.style.transform = ''; el.style.opacity = ''; } };
+  el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+  el.addEventListener('click', e => { if (el._swiped && Date.now() - el._swiped < 400){ e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 function markPlaying(){ document.querySelectorAll('.tr').forEach(r=>{ const on = r.dataset.id===cur(); r.classList.toggle('playing', on); const n=r.querySelector('.n'); if(on && !r.dataset.ctx.startsWith('pl:') && !['favs','search','search-rec'].includes(r.dataset.ctx)){ n.innerHTML = `<span class="eq ${audio.paused?'paused':''}"><i></i><i></i><i></i></span>`; r.classList.toggle('paused', audio.paused);} }); }
 function artURL(aid){ return coverOf(aid, 512) || (ALB[aid]?.extra ? 'icon-512.png' : `art/${aid}.png`); }
 function mediaSession(){
@@ -1985,6 +2027,7 @@ document.addEventListener('click', e => {
     if (a==='extperm'){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('목록에서 「요루시카 서재」를 켜고 돌아와 주세요'); return; }
     if (a==='extapp'){ LS.set('extApp', act.dataset.pkg); if (state.mode==='ext'){ try{ YoruNative.extStopQueue(); }catch(e){} } toast(`${extName()}(으)로 연동해요`); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
     if (a==='extopen'){ try{ YoruNative.extOpenApp(extPkg()); }catch(e){} return; }
+    if (a==='extinfo'){ try{ YoruNative.extOpenAppInfo(); }catch(e){} toast('⋮ → 제한된 설정 허용을 누르고 돌아와 주세요'); return; }
     if (a==='extfollow'){ LS.set('extFollow', !LS.get('extFollow', true)); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
     if (a==='ytside'){ LS.set('ytLeft', !LS.get('ytLeft', false)); return positionYT(); }
     if (a==='ytlink') return promptName('YouTube 링크 붙여넣기', ytUser[id] ? 'https://youtu.be/'+ytUser[id] : '', v=>{ const vid = parseYT(v); if (!vid) return toast('영상 주소를 알아보지 못했어요 — youtube.com/watch?v=… 또는 youtu.be/… 형식이에요');
@@ -2105,7 +2148,7 @@ window.yoruBack = () => {
 (async function init(){
   buildSky(); applyTheme(); setInterval(applyTheme, 60000); $('#np').addEventListener('transitionend', posYT);
   const v = $('#vol'); v.value = state.vol; v.style.setProperty('--p',(state.vol*100)+'%');
-  await refreshAudio(); setupMediaKeys(); await restoreSession(); updateBar(); render(); booted = true;
+  await refreshAudio(); setupMediaKeys(); if (NATIVE){ extApps(); extPoll(); } await restoreSession(); updateBar(); render(); booted = true;
   if (!NATIVE && 'serviceWorker' in navigator && location.protocol==='https:' && !/claude|anthropic/.test(location.host)){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }
   setTimeout(maybeCheck, 2500); setTimeout(checkApk, 5000); setTimeout(maybeCovers, 1200);
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
