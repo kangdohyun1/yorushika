@@ -280,12 +280,21 @@ const YT_MV = {
   '春泥棒':'Sw1Flgub9s8', '風を食む':'GVrRXhS0mLs', '嘘月':'utpMm8qi4hg',
   'ブレーメン':'oy6MDr6I6rM', 'チノカテ':'Fq55MMfHoJg', '月に吠える':'wCN9WliV-ew', '451':'RmYdZZLOYA8', '又三郎':'siNFnlqtd8M', '老人と海':'WwnZeQiI6hQ', '左右盲':'1IlTeOMCNJU', 'アルジャーノン':'_9_rUFrgLI8',
   '太陽':'Qgj3xHRlGr8', '晴る':'CkvWJNt77mU', '忘れてください':'J_DE2d1F9wU', '修羅':'h4F-q-R67H0', '火星人':'OLRbIc8KZ_8', 'アポリア':'fhTFysCtF6g', 'へび':'sf0QFJTvOLM', '月光浴':'wUzvF5xm2C0', '千鳥':'t75qlQPXJGw', '櫂':'SIwfXPESJ8k',
-  'テレパス':'LTeROfwwtnA', '斜陽':'bqigIHMComE', '茜':'VD_ztcqWBAY', 'あぶく':'OHAjc-ayhus', '雲を抜け風下へ私だけ':'J5-NUv2fNtk'
+  'テレパス':'LTeROfwwtnA', '斜陽':'bqigIHMComE', '茜':'VD_ztcqWBAY', 'あぶく':'OHAjc-ayhus', '雲を抜け風下へ私だけ':'J5-NUv2fNtk',
+  /* MV가 없는 수록곡 — 레이블이 올린 공식 음원(Provided to YouTube by Universal Music Group / NexTone) */
+  '夏陰、ピアノを弾く':'VrhQEwN97vE', 'カトレア':'iC3pkl1nUVM', 'あの夏に咲け':'p0_udWUi1HA', '飛行':'A14pg6suBt4',
+  '音楽泥棒の自白':'7lZNHcJuOXk', '昼鳶':'vfi1866ly1o', '青年期、空き巣':'1g3TGUTme-A', 'レプリカント':'nMPQoiZoN2U', '花人局':'3XIORoa0v0k', '逃亡':'LiStvz5SWMc', '幼年期、思い出の中':'pKJ55ftVPRE',
+  '強盗と花束':'qi1x1qgXbO8', '創作':'UiBXhNcineo',
+  '早朝、郵便受け':'vdlc-44hjc4', '雲になる':'voNmhJICziA', '花も騒めく':'3imwvJnqDIE', '魔性':'_Zux8YPFWXo', 'プレイシック':'xFye-iUhVKo', 'ポスト春':'bKZkKy5rP_s',
+  'ルバート':'2BgWMrU-aUM', '火葬':'Y0Na3bgkKiI', 'うめき':'k7PaxegnNnw', '啄木鳥':'4SLEv7ylT-k', 'ヒッチコック (Re-Recording)':'x0LWO9sn8SA'
 };
 /* YouTube Music 공식 앨범 재생목록 — MV가 없는 수록곡을 앨범 음원으로 채움. order가 없으면 앨범 트랙 순서 그대로 */
 const YT_LIST = {
   makeinu:{ list:'OLAK5uy_ms71NJ4p7T76oxLP7qnSOVHtNCQlkSqfQ' },
+  tousaku:{ list:'OLAK5uy_mkH08KAN74gApVf2gYIbs2nj5CGuD8m2g' },
   dakara:{ list:'OLAK5uy_lfdGZfVL6iKGGDmhOfNWZmJB4ryave-C0' },
   elma:{ list:'OLAK5uy_ld-S4Z4GPEgAulzBhsaCOqrx3uXeqXzhA' },
   gentou:{ list:'OLAK5uy_nYkTcWLQkJ6qsws91O5UFvNkIsvweu1sw', order:['都落ち','ブレーメン','チノカテ','月に吠える','451','又三郎','老人と海','左右盲','アルジャーノン','第一夜'] }
 };
+/* 공식 YouTube 음원이 없는 이유 — 곡 정보에 안내 */
+const YT_NOTE = { gentou:'음악 화집 『幻燈』 실물로만 공개된 곡이라 공식 YouTube 음원이 없어요(디지털판은 10곡)' };
