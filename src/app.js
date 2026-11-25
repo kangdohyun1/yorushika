@@ -129,6 +129,7 @@ const coverMode = () => LS.get('coverMode', 'official');
 let COV = LS.get('covers', {});
 function coverOf(aid, px=300){
   if (coverMode() !== 'official') return '';
+  if (ALB[aid]?.live) return LIVE_THUMB[aid] ? `https://i.ytimg.com/vi/${LIVE_THUMB[aid]}/${px > 320 ? 'maxresdefault' : 'hqdefault'}.jpg` : '';
   const u = (COV.map || {})[aid]; if (!u) return '';
   return u.replace(/\/\d+x\d+(bb|cc)?\.(jpg|png|webp)$/i, `/${px}x${px}bb.jpg`);
 }
@@ -146,16 +147,19 @@ async function fetchCovers(manual){
       if (a.id === 'singles'){ for (let i = a.tracks.length-1; i >= 0; i--){ const u = by[albKey(a.tracks[i][0])]; if (u){ map[a.id] = u; break; } } return; }
       const u = by[albKey(a.jp)]; if (u) map[a.id] = u; });
     const old = JSON.stringify(COV.map || {});
-    COV = { map, at: Date.now(), n: Object.keys(map).length }; LS.set('covers', COV);
+    const miss = ALBUMS.filter(a => !a.live && !map[a.id]).map(a => a.id);
+    COV = { map, at: Date.now(), n: Object.keys(map).length, v: 2, miss, found: cols.length }; LS.set('covers', COV);
     if (manual) toast(Object.keys(map).length ? `공식 커버 ${Object.keys(map).length}장을 불러왔어요` : '커버를 찾지 못했어요');
     if (old !== JSON.stringify(map) || manual){ if (!$('#np').classList.contains('open')){ const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; } updateBar(); }
-  }catch(e){ if (manual) toast(/claude|anthropic/.test(location.host) ? '미리보기 화면에서는 외부 연결이 막혀 있어요 — 설치한 앱에서 불러와져요' : '커버를 불러오지 못했어요 — 인터넷 연결을 확인해 주세요'); }
+  }catch(e){ COV = { ...COV, err: Date.now() }; LS.set('covers', COV); if (manual) toast(/claude|anthropic/.test(location.host) ? '미리보기 화면에서는 외부 연결이 막혀 있어요 — 설치한 앱에서 불러와져요' : '커버를 불러오지 못했어요 — 인터넷 연결을 확인해 주세요'); }
   coverBusy = false;
 }
-function maybeCovers(){ const c = COV; if (coverMode()==='official' && navigator.onLine !== false && (!c.at || Date.now() - c.at > 7*864e5)) fetchCovers(false); }
+/* 일주일에 한 번, 또는 저장 형식이 바뀌었거나 지난번에 실패했으면 다시 불러온다 */
+function maybeCovers(){ const c = COV; if (coverMode()==='official' && navigator.onLine !== false && (!c.at || c.v !== 2 || (c.err && c.err > c.at) || ALBUMS.some(a => !a.live && !(c.map||{})[a.id] && !(c.miss||[]).includes(a.id)) || Date.now() - c.at > 7*864e5)) fetchCovers(false); }
+addEventListener('online', () => maybeCovers());
 function art(aid, big){
   const cv = coverOf(aid, big ? 600 : 300);
-  if (cv) return `<span class="awrap">${artSvg(aid)}<img class="ocov" src="${esc(cv)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"></span>`;
+  if (cv) return `<span class="awrap">${artSvg(aid)}<img class="ocov${ALB[aid]?.live ? ' yt' : ''}" src="${esc(cv)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"></span>`;
   return artSvg(aid);
 }
 function artSvg(aid){
@@ -338,9 +342,10 @@ function vSettings(){
   return `<h1 class="page">설정</h1><p class="page-sub">設定</p>
   <div class="card set"><h3>테마</h3><p>자동은 저녁 7시부터 아침 6시까지 밤 테마로 바뀝니다.</p>
     <div class="seg" id="themeSeg">${['auto','day','night'].map(t=>`<button data-theme-set="${t}" class="${state.theme===t?'on':''}">${{auto:'자동',day:'낮 · 昼',night:'밤 · 夜'}[t]}</button>`).join('')}</div></div>
-  ${(()=>{ const c = COV; const m = coverMode(); return `<div class="card set"><h3>앨범 커버</h3><p>공식 커버는 Apple Music 공개 카탈로그의 앨범 이미지를 불러와 보여 줘요(인터넷이 필요하고, 한 번 본 이미지는 기기에 남아요). 라이브 영상 작품은 카탈로그에 없어서 앱 일러스트로 보여요.</p>
+  ${(()=>{ const c = COV; const m = coverMode(); return `<div class="card set"><h3>앨범 커버</h3><p>공식 커버는 Apple Music 공개 카탈로그의 앨범 이미지를 불러와 보여 줘요(인터넷이 필요하고, 한 번 본 이미지는 기기에 남아요). 라이브 영상 작품은 음악 카탈로그에 커버가 없어서 공식 채널의 대표 라이브 영상 썸네일을 자르지 않고 보여 줘요.</p>
     <div class="seg">${[['official','공식 커버'],['art','앱 일러스트']].map(([k,l])=>`<button data-cover="${k}" class="${m===k?'on':''}">${l}</button>`).join('')}</div>
-    <div class="upd-row" style="margin-top:12px"><button class="btn sm" data-act="covers">${ic('rep')} 커버 다시 불러오기</button><span class="tiny">${c.at ? `${c.n||0}장 · ${new Date(c.at).toLocaleDateString('ko-KR')}` : '아직 불러오지 않음'}</span></div></div>`; })()}
+    <div class="upd-row" style="margin-top:12px"><button class="btn sm" data-act="covers">${ic('rep')} 커버 다시 불러오기</button><span class="tiny">${c.at ? `스튜디오 ${c.n||0}장 · ${new Date(c.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}` : '아직 불러오지 않음'}${c.err && (!c.at || c.err > c.at) ? ' · 마지막 시도 실패(인터넷 확인)' : ''}</span></div>
+    ${m==='official' ? `<div class="covgrid">${ALBUMS.map(a => { const ok = !!coverOf(a.id); return `<div class="cg" data-go="#/album/${a.id}"><div class="art">${art(a.id)}</div><div class="tiny">${esc(a.kr)}<br>${a.live ? (ok ? '공식 영상 썸네일' : '일러스트') : ok ? '공식 커버 ✓' : '<b>못 찾음</b>'}</div></div>`; }).join('')}</div>` : ''}</div>`; })()}
   ${(()=>{ const ex = getExtra(); const perm = ('Notification' in window) ? Notification.permission : 'unsupported'; const when = ex.lastCheck ? new Date(ex.lastCheck).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '아직 없음';
     return `<div class="card set"><h3>신곡 · 새 앨범 자동 추가</h3><p>앱을 열 때마다(6시간에 한 번) Apple Music과 MusicBrainz의 공개 정보를 확인해서, ${UPD_CFG.since.replace(/-/g,'.')} 이후 새로 나온 곡과 앨범을 목록에 넣습니다. 새 곡은 NEW 표시와 함께 들어오고, 한국어 제목은 자동 번역(MyMemory)으로 먼저 붙고 '자동 번역' 표시가 달려요. 마음에 안 들면 곡 정보에서 고치면 됩니다.</p>
       <div class="upd-row"><button class="btn pri" data-act="chkupd">${ic('rep')} 지금 확인</button>
@@ -368,7 +373,7 @@ function vSettings(){
     <div class="seg">${[['ext','연동 앱으로 재생'],['yt','YouTube 공식 영상으로']].map(([k,l])=>`<button data-srcpref="${k}" class="${pref===k?'on':''}">${l}</button>`).join('')}</div>
     <div class="upd-row" style="margin-top:12px"><button class="btn sm" data-act="extfollow">${fol?'✓ ':''}연동 앱에서 듣는 요루시카 곡 따라가기 ${fol?'켬':'끔'}</button></div>
     ${acc && extInfo.title ? `<div class="tiny" style="margin-top:10px">지금 ${esc(extInfo.app||'')}: ${esc(extInfo.title)}${extInfo.artist?' · '+esc(extInfo.artist):''}${extMatch(extInfo.title, extInfo.artist, extInfo.album)?' — 이 앱의 곡과 연결됨 ✓':''}</div>` : ''}
-    <p class="tiny" style="margin:12px 0 0">· 알림 접근 권한은 '지금 재생 중인 곡'을 읽고 재생 명령을 보내는 데만 써요. 알림 내용은 읽거나 저장하지 않아요.<br>· Spotify 무료는 곡을 골라 듣는 시간이 하루 단위로 제한되고 광고가 나와요. YouTube Music은 Premium이어야 백그라운드 재생이 돼요.<br>· 라이브 영상 작품과 幻燈 화집 전용곡은 스트리밍 음원이 없어 YouTube 공식 영상으로 재생해요.<br>· 연동 앱이 꺼져 있으면 첫 곡은 그 앱이 열리면서 시작될 수 있어요. 그다음부터는 이 앱에서 누르는 대로 바로 바뀌어요.</p></div>`; })()}
+    <p class="tiny" style="margin:12px 0 0">· 알림 접근 권한은 '지금 재생 중인 곡'을 읽고 재생 명령을 보내는 데만 써요. 알림 내용은 읽거나 저장하지 않아요.<br>· Spotify 무료는 곡을 골라 듣는 시간이 하루 단위로 제한되고 광고가 나와요. YouTube Music은 Premium이어야 백그라운드 재생이 돼요.<br>· 라이브 영상 작품은 스트리밍 음원이 없어 YouTube 공식 영상으로 재생해요.<br>· 연동 앱이 꺼져 있으면 첫 곡은 그 앱이 열리면서 시작될 수 있어요. 그다음부터는 이 앱에서 누르는 대로 바로 바뀌어요.</p></div>`; })()}
   <div class="card set"><h3>음원 가져오기</h3><p>갖고 있는 음원 파일(mp3, m4a, flac 등)을 고르면 파일 이름으로 곡을 자동 연결합니다. 파일은 이 기기 안에만 저장됩니다. 연결 안 된 파일은 곡 화면의 '음원 연결'로 직접 지정할 수 있어요.</p>
     <label class="btn pri">${ic('music')} 파일 고르기<input type="file" id="audIn" accept="audio/*" multiple hidden></label> <span class="tiny">현재 ${nAud}곡 연결됨</span><div class="prog" id="audProg" style="display:none"><i></i></div><div id="audRes" class="tiny" style="margin-top:8px">${lastImport}</div></div>
   <div class="card set"><h3>가사</h3><p>가사는 곡 화면 → '가사 편집'에서 일본어 원문과 한국어 번역을 붙여 넣어 저장합니다. 줄 단위로 짝지어 보여 줍니다. 현재 ${nLy}곡 저장됨.</p>
@@ -723,8 +728,8 @@ const extPkg = () => { const pick = LS.get('extApp', ''); if (pick && EXT_INST.s
 const extName = () => EXT_APPS[extPkg()] || '연동 앱';
 /* 기본값 'auto': 권한이 있고 연동 앱이 깔려 있으면 YouTube보다 연동 앱을 먼저 쓴다 */
 const extOn = () => NATIVE && LS.get('srcPref', 'auto') !== 'yt' && !!extInfo.access && EXT_INST.some(a=>a.pkg===extPkg());
-/* 스트리밍에 있는 곡: 라이브 영상 작품과 幻燈 화집 전용곡은 제외 */
-const streamable = id => { const s = SONGS[id]; if (!s || s.live) return false; if (s.album === 'gentou') return YT_LIST.gentou.order.includes(s.jp); return true; };
+/* 스트리밍에 있는 곡: 라이브 영상 작품만 제외(『幻燈』은 25곡판이 스트리밍에 있음) */
+const streamable = id => { const s = SONGS[id]; return !!s && !s.live; };
 const extQuery = id => { const s = SONGS[id]; return baseTitle(s.jp) + (s.rr ? ' Re-Recording' : '') + ' ヨルシカ'; };
 /* 연동 앱이 알려 준 제목·가수·앨범으로 우리 곡 찾기 */
 function extMatch(t, ar, al){

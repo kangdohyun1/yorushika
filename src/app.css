@@ -431,3 +431,8 @@ table.keys td{padding:8px 12px}
   body.noplayer #player{display:none}
   #player{touch-action:pan-y}
 }
+.awrap .ocov.yt{object-fit:contain;background:#05070a}
+.covgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:12px;margin-top:14px}
+.covgrid .cg{cursor:pointer;text-align:center}
+.covgrid .art{aspect-ratio:1;border-radius:6px;overflow:hidden;margin-bottom:6px;box-shadow:0 0 0 1px var(--line)}
+.covgrid .tiny{line-height:1.35}

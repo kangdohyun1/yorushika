@@ -297,7 +297,9 @@ const YT_LIST = {
   gentou:{ list:'OLAK5uy_nYkTcWLQkJ6qsws91O5UFvNkIsvweu1sw', order:['都落ち','ブレーメン','チノカテ','月に吠える','451','又三郎','老人と海','左右盲','アルジャーノン','第一夜'] }
 };
 /* 공식 YouTube 음원이 없는 이유 — 곡 정보에 안내 */
-const YT_NOTE = { gentou:'음악 화집 『幻燈』 실물로만 공개된 곡이라 공식 YouTube 음원이 없어요(디지털판은 10곡)' };
+const YT_NOTE = { gentou:'YouTube에는 이 곡의 공식 음원이 없어요. Apple Music에는 『幻燈』 25곡판이 올라와 있어서 스트리밍 앱 연동으로 들을 수 있어요' };
+/* 라이브 영상 작품은 음악 카탈로그에 커버가 없어서, 공식 채널의 대표 영상 썸네일을 보여 준다(자르지 않고 그대로) */
+const LIVE_THUMB = { 'live-zense21':'Ht6lcYg9Zfo', 'live-gekkou':'m2xmJFdYfJw', 'live-tsuki':'5Of2HNJa_gs', 'live-zense24':'Rl1xfaXlrxw', 'live-tousaku':'6-YdwCEmPro' };
 /* 공식 라이브 영상 — 앨범 id → 곡 제목 → 'ID' 또는 [ID, 시작초, 끝초, 이어서 나오는 다음 곡, 'est'(구간 추정)] */
 const YT_LIVE = {
   'live-zense21': { '花人局':['Ht6lcYg9Zfo',0,0,'春泥棒'] },
