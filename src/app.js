@@ -226,7 +226,7 @@ function artSvg(aid){
 function accentFor(hex){ if (document.documentElement.dataset.mode!=='night') return hex; const n = parseInt(hex.slice(1),16); const m = c => Math.round(c + (255-c)*0.48); return '#'+[m(n>>16&255),m(n>>8&255),m(n&255)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 function setAccent(hex){ document.documentElement.style.setProperty('--accent', accentFor(hex)); }
 /* =================== 라우팅 =================== */
-const routes = { home:vHome, all:vAll, albums:vAlbums, album:vAlbum, playlists:vPlaylists, playlist:vPlaylist, story:vStory, read:vRead, versions:vVersions, favs:vFavs, search:vSearch, settings:vSettings };
+const routes = { home:vHome, all:vAll, albums:vAlbums, album:vAlbum, playlists:vPlaylists, playlist:vPlaylist, story:vStory, saga:vSaga, read:vRead, versions:vVersions, favs:vFavs, search:vSearch, settings:vSettings };
 function go(h){ location.hash = h; }
 function render(){
   const [r, p] = (location.hash.slice(2) || 'home').split('/');
@@ -234,7 +234,7 @@ function render(){
   if (r!=='album') document.documentElement.style.setProperty('--accent', document.documentElement.dataset.mode==='night'?'#8fb4dc':'#3f6f9a');
   closeNP();
   const m = $('#main'); m.innerHTML = `<div class="view">${fn(p ? decodeURIComponent(p) : undefined)}</div>`; m.scrollTop = 0;
-  const nk = r==='album'||r==='versions'?'albums':r==='playlist'?'playlists':r==='read'?'story':r;
+  const nk = r==='album'||r==='versions'?'albums':r==='playlist'?'playlists':r==='read'||r==='saga'?'story':r;
   document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === nk || (nk==='all' && n.dataset.nav==='albums' && n.closest('#tabs'))));
   markPlaying();
   if (r==='search'){ const s=$('#q'); s && (s.focus(), s.setSelectionRange(s.value.length,s.value.length)); }
@@ -244,7 +244,7 @@ window.addEventListener('hashchange', render);
 /* =================== 뷰 =================== */
 function trackRow(id, i, ctx){
   const s = SONGS[id]; const fav = state.favs.has(id); const a = ALB[s.album];
-  const mixed = ctx.startsWith('pl:') || ['favs','search','search-rec','all'].includes(ctx);   // 여러 앨범이 섞인 목록
+  const mixed = ctx.startsWith('pl:') || ['favs','search','search-rec','all'].includes(ctx) || (ctx.startsWith('saga:') && sagaMixed(ctx));   // 여러 앨범이 섞인 목록
   const grouped = ctx === 'all' && state.allOpt.sort === 'album';   // 앨범 머리줄이 이미 있음 → 태그 생략
   return `<div class="tr" data-id="${id}" data-ctx="${esc(ctx)}" data-i="${i}">
     <div class="n">${mixed && !grouped ? `<div class="art" style="width:34px;height:34px;border-radius:5px;overflow:hidden">${art(s.album)}</div>` : s.no}</div>
@@ -260,6 +260,7 @@ function ctxList(ctx){
   if (ctx.startsWith('pl:')) return (state.playlists.find(p=>p.id===ctx.slice(3))||{songs:[]}).songs;
   if (ctx==='favs') return ORDER.filter(id=>state.favs.has(id));
   if (ctx==='all') return allIds();
+  if (ctx.startsWith('saga:')) return sagaIds(ctx.slice(5));
   if (ctx==='search') return searchIds($('#q')?.value||'');
   return [];
 }
@@ -332,7 +333,7 @@ function vAlbum(id){
   setAccent(a.hue);
   const ids = ctxList('alb:'+id); const n = ids.filter(x=>state.hasAudio.has(x)).length, ny = ids.filter(x=>!state.hasAudio.has(x) && ytOf(x)).length;
   return `<div class="ahead"><div class="art">${art(id,1)}</div><div><div class="type">${a.type.toUpperCase()} · ${a.date}</div><h1>${esc(a.kr)}${a.krAuto?' <span class="chip">자동 번역</span>':''} <button class="ibtn sm" data-act="renalb" data-alb="${id}" title="한국어 제목 고치기">${ic('edit')}</button></h1><div class="j">${esc(a.jp)}</div><p class="bl">${esc(a.blurb)}</p>
-    <div class="acts"><button class="btn pri" data-play="alb:${id}">${ic('play')} 재생</button><button class="btn" data-play="alb:${id}" data-shuf="1">${ic('shuf')} 셔플</button><button class="btn" data-addall="alb:${id}">${ic('plus')} 전부 담기</button>${(()=>{const ar=STORY.arcs.find(x=>x.albums.includes(id));return ar&&DEEP[ar.id]?`<a class="btn" href="#/read/${ar.id}">${ic('book')} 이야기 읽기</a>`:''})()}<span class="tiny" style="align-self:center">${ids.length}곡 · 음원 ${n}${ny?` · YouTube ${ny}`:''}</span></div></div></div>
+    <div class="acts"><button class="btn pri" data-play="alb:${id}">${ic('play')} 재생</button><button class="btn" data-play="alb:${id}" data-shuf="1">${ic('shuf')} 셔플</button><button class="btn" data-addall="alb:${id}">${ic('plus')} 전부 담기</button>${(()=>{const k=sagaOfAlbum(id);return k>=0?`<a class="btn" href="#/saga/${k}">${ic('book')} 이야기 읽기 · ${SAGA.chapters[k].mark}장</a>`:''})()}<span class="tiny" style="align-self:center">${ids.length}곡 · 음원 ${n}${ny?` · YouTube ${ny}`:''}</span></div></div></div>
     <div class="card tl">${ids.map((x,i)=>trackRow(x,i,'alb:'+id)).join('')}</div>
     ${a.live ? `${YT_FULL[id] ? `<div class="card set" style="margin-top:14px"><b class="kr">공연 전체 영상이 공식 채널에 올라와 있어요</b><p class="tiny" style="margin:6px 0 10px">목록에서 YouTube 표시가 없는 곡은 곡 정보 → '공연 전체 영상에서 이 곡 찾기'로 시작·끝 지점을 한 번 맞춰 두면 그 구간만 재생돼요.</p><a class="btn" target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=${YT_FULL[id]}">${ic('link')} 공연 전체 영상 (YouTube)</a></div>` : ''}
     <p class="tiny" style="margin-top:14px">${a.readings && a.readings.length ? `목록에서 뺀 낭독·연출 파트: ${a.readings.map(esc).join(' · ')}<br>` : ''}공식 영상 작품의 수록곡 기준입니다. 공식 라이브 영상이 있는 곡은 YouTube로 재생되고, 직접 소장한 영상에서 뽑은 음원 파일도 연결할 수 있어요(파일 이름에 'live'와 공연 이름이 있으면 자동 연결). 가사가 없으면 원곡 가사가 보여요.</p>` : ''}`;
@@ -358,13 +359,32 @@ function vSearch(q=''){
   <div class="search">${ic('search')}<input id="q" value="${esc(q)}" placeholder="예: 봄 도둑, 春泥棒, 엘마…"></div>
   <div id="sres">${q?(ids.length?`<div class="card tl">${ids.map((x,i)=>trackRow(x,i,'search')).join('')}</div>`:'<div class="empty">찾는 곡이 없어요.</div>'):''}</div>`;
 }
+/* =================== 이어 읽기 =================== */
+const sagaSongs = c => c.songs.map(([a,j]) => sidOf(a,j));
+function sagaIds(k){
+  if (k === 'all'){ const seen = new Set(); return SAGA.chapters.flatMap(sagaSongs).filter(x => !seen.has(x) && seen.add(x)); }
+  const c = SAGA.chapters[+k]; return c ? sagaSongs(c) : [];
+}
+const sagaMixed = ctx => { const k = ctx.slice(5); return k === 'all' || (SAGA.chapters[+k]?.albums.length || 0) > 1; };
+const sagaOfAlbum = id => SAGA.chapters.findIndex(c => c.albums.includes(id));
+function sagaMap(){
+  const C = SAGA.chapters;
+  return `<ol class="sg-map">${C.map((c,i) => `<li class="sg-node" data-go="#/saga/${i}"><span class="sg-dot jp">${c.mark}</span>
+      <span class="sg-arts">${c.albums.map(a=>`<span class="art">${art(a)}</span>`).join('')}</span>
+      <span class="sg-txt"><b class="kr">${esc(c.title)}</b><span class="tiny">${c.era}${c.who?` · ${esc(c.who[0])} → ${esc(c.who[1])}`:''}</span><span class="sg-key kr">${esc(c.key)}</span></span></li>
+    ${i < C.length-1 ? (c.link ? `<li class="sg-link ${c.link[0]==='off'?'solid':''}"><i class="tag ${c.link[0]}">${TAGS[c.link[0]][0]}</i><span class="kr">${esc(c.link[1])}</span></li>` : '<li class="sg-link plain"></li>') : ''}`).join('')}</ol>`;
+}
 function vStory(){
-  const S = STORY;
+  const S = STORY, n = sagaIds('all').length;
   return `<h1 class="page">이야기와 세계관</h1><p class="page-sub">物語と世界観</p>
-  <div class="card story-intro"><h2 class="kr" style="margin:0 0 12px">${S.intro.title}</h2>${S.intro.body.map(p=>`<p>${p}</p>`).join('')}</div>
+  <div class="card saga-intro"><p class="kr">${SAGA.lead}</p>
+    <div class="sg-q">${SAGA.questions.map((q,i)=>`<span class="kr"><b class="jp">${'一二三'[i]}</b>${esc(q)}</span>`).join('')}</div>
+    <div class="acts"><a class="btn pri" href="#/saga/0">${ic('book')} 처음부터 이어 읽기</a><button class="btn" data-play="saga:all">${ic('play')} 이야기 순서로 듣기</button><span class="tiny">${SAGA.chapters.length}장 · ${n}곡</span></div></div>
   <div class="sec-t"><h2>이야기 지도</h2><span>年表</span></div>
-  <div class="timeline">${S.arcs.map(a=>`<div class="arc" id="${a.id}"><div class="card"><div class="era">${a.era}</div><h3>${a.title}</h3><div class="bd">${a.body}</div>${a.note?`<div class="nt">✎ ${a.note}</div>`:''}
-    <div class="als">${DEEP[a.id]?`<a class="btn pri" href="#/read/${a.id}">${ic('book')} 자세히 읽기</a>`:''}${a.albums.map(x=>`<div class="mini-alb" data-go="#/album/${x}"><div class="art">${art(x)}</div>${esc(ALB[x].kr)}</div>`).join('')}</div></div></div>`).join('')}</div>
+  <div class="legend" style="margin:-4px 0 14px"><span><i class="sg-ln solid"></i>줄거리가 실제로 이어짐</span><span><i class="sg-ln"></i>같은 질문으로 이어짐</span><span>장을 누르면 그 장부터 읽어요</span></div>
+  ${sagaMap()}
+  <div class="sec-t"><h2>요루시카</h2><span>ヨルシカ</span></div>
+  <div class="card story-intro">${S.intro.body.map(p=>`<p>${p}</p>`).join('')}</div>
   <div class="sec-t"><h2>인물</h2><span>登場人物</span></div>
   <div class="chars">${S.characters.map(c=>`<div class="card char"><div class="jp">${c.jp}</div><div class="nm">${c.name}</div><div class="rl">${c.role}</div><div class="ds">${c.desc}</div></div>`).join('')}</div>
   <div class="sec-t"><h2>모티프 사전</h2><span>モチーフ</span></div>
@@ -375,6 +395,29 @@ function vStory(){
   <div class="card lives">${S.lives.map(l=>`<div class="live"><div class="yr">${l[0]}</div><div>${l[1]}${l[2]?` <span class="tiny">· ${l[2]}</span>`:''}</div></div>`).join('')}</div>
   <div style="margin-top:14px">${verCard()}</div>
   <p class="tiny" style="margin-top:24px">줄거리 요약은 공개된 정보를 바탕으로 직접 정리한 것이며, 해석이 갈리는 부분은 표시해 두었습니다.</p>`;
+}
+function vSaga(k){
+  const C = SAGA.chapters, i = Math.max(0, Math.min(C.length-1, parseInt(k) || 0)), c = C[i], pv = C[i-1], nx = C[i+1];
+  if (c.albums.length) setAccent(ALB[c.albums[c.albums.length-1]].hue);
+  const ids = sagaIds(i);
+  const tag = t => `<i class="tag ${t}">${TAGS[t][0]}</i>`;
+  const table = c.id === 'epilogue' ? `<div class="sg-table"><table class="ref"><tr><th></th><th>누가 → 누구에게</th><th>손에 쥐는 이야기</th><th>빌림의 방식</th></tr>${C.map((x,j)=>x.who ? `<tr data-go="#/saga/${j}"><td>${x.mark}</td><td class="kr"><b>${esc(x.who[0])}</b> → ${esc(x.who[1])}</td><td class="kr" data-l="손에 쥐는 이야기">${esc(x.form)}</td><td class="kr muted" data-l="빌림">${esc(x.borrow)}</td></tr>` : '').join('')}</table></div>` : '';
+  return `<a class="back" href="#/story">← 이야기 지도</a>
+  <nav class="ch-strip" aria-label="장 이동">${C.map((x,j)=>`<a href="#/saga/${j}" class="${j===i?'on':''} ${j<i?'done':''}" title="${esc(x.title)}"><span class="jp">${x.mark}</span></a>`).join('')}</nav>
+  <header class="rhead ch-head"><div class="era jp">${c.era} · ${i===0?'序章':i===C.length-1?'終章':'第'+c.mark+'章'} <span class="tiny">(${i+1}/${C.length})</span></div>
+    <h1 class="page">${esc(c.title)}</h1><p class="page-sub">${esc(c.jp)}</p>
+    ${c.who ? `<div class="ch-who"><span class="who"><b class="kr">${esc(c.who[0])}</b><i>→</i><b class="kr">${esc(c.who[1])}</b></span><span class="tiny kr">${esc(c.form)}</span></div>` : ''}
+    ${c.albums.length ? `<div class="als">${c.albums.map(x=>`<div class="mini-alb" data-go="#/album/${x}"><div class="art">${art(x)}</div>${esc(ALB[x].kr)}</div>`).join('')}</div>` : ''}</header>
+  ${c.recap ? `<div class="recap"><span class="tiny">${pv ? `앞 장(${pv.mark})에서` : '먼저'}</span><p class="kr">${esc(c.recap)}</p></div>` : ''}
+  <article class="card ch-body">${c.body.map(([t,x])=>`<p class="para kr">${tag(t)}${esc(x)}</p>`).join('')}${table}
+    <div class="legend">${Object.entries(TAGS).map(([k,v])=>`<span>${tag(k)}${v[1]}</span>`).join('')}</div></article>
+  ${ids.length ? `<div class="sec-t"><h2>이 장을 따라 듣기</h2><span>${ids.length}曲</span></div>
+    <div class="acts ch-acts"><button class="btn pri" data-play="saga:${i}">${ic('play')} 순서대로 듣기</button>${c.deep && DEEP[c.deep] ? `<a class="btn" href="#/read/${c.deep}">${ic('book')} 장면 노트로 더 깊이</a>` : ''}</div>
+    <div class="card tl">${ids.map((id,j)=>trackRow(id, j, 'saga:'+i)).join('')}</div>` : ''}
+  ${nx ? `<a class="bridge card" href="#/saga/${i+1}"><div class="tiny">다음 장으로 이어지는 실</div>${c.bridge ? `<p class="kr">${tag(c.bridge[0])}${esc(c.bridge[1])}</p>` : ''}<b class="kr">${nx.mark} · ${esc(nx.title)} →</b></a>`
+       : `<div class="bridge card end"><div class="tiny">이야기 끝</div><p class="kr">처음부터 다시 읽거나, 지도에서 궁금한 장으로 바로 가 보세요.</p><div class="acts"><a class="btn pri" href="#/saga/0">처음부터 다시</a><a class="btn" href="#/story">이야기 지도</a><button class="btn" data-play="saga:all">${ic('play')} 이야기 순서로 듣기</button></div></div>`}
+  ${pv ? `<nav class="rnav"><a class="card" href="#/saga/${i-1}"><span class="tiny">← 이전 장</span><b class="kr">${pv.mark} · ${esc(pv.title)}</b></a><span></span></nav>` : ''}
+  <p class="tiny" style="margin-top:20px">줄거리는 공개된 설명·인터뷰·평론을 바탕으로 직접 요약했고, 가사나 소설 원문은 옮기지 않았습니다.</p>`;
 }
 function vSettings(){
   const nAud = state.hasAudio.size, nLy = Object.values(state.lyrics).filter(l=>l.jp||l.kr).length;
@@ -528,6 +571,7 @@ function npBody(s){
     return `<div class="info"><dl><dt>한국어</dt><dd class="kr">${esc(s.kr)} <button class="btn sm" data-act="rensong" data-id="${s.id}">${ic('edit')} 고치기</button> <button class="btn sm" data-act="mtone" data-id="${s.id}">자동 번역</button></dd><dt>일본어</dt><dd class="jp">${esc(s.jp)}</dd><dt>앨범</dt><dd>${esc(a.kr)} <span class="jp muted">${esc(a.jp)}</span></dd><dt>트랙</dt><dd>${s.no} / ${a.tracks.length}${s.inst?' · 연주곡':''}</dd><dt>발매</dt><dd>${a.date}</dd><dt>음원</dt><dd>${state.hasAudio.has(s.id)?'연결됨 ✓':'없음'}</dd>${NATIVE ? `<dt>연동 앱</dt><dd>${streamable(s.id) ? (extOn() ? `${esc(extName())}에서 재생 ✓` : '꺼짐 — 설정 → 스트리밍 앱 연동') : '스트리밍 음원 없음'}${cur()===s.id && audio.eng===extEng && extInfo.title ? `<div class="tiny">지금 ${esc(EXT_APPS[extInfo.pkg]||'')}: ${esc(extInfo.title)}${extInfo.artist?' · '+esc(extInfo.artist):''}</div>` : ''}</dd>` : ''}<dt>YouTube</dt><dd>${ytLabel(ytOf(s.id))}${segBox(s)}${!ytOf(s.id) && !s.live && YT_NOTE[s.album] ? `<div class="tiny">${YT_NOTE[s.album]}</div>` : ''}${cur()===s.id && audio.eng===ytEng ? `<div class="tiny" id="ytNow">${esc(ytEng.title)}</div>` : ''}</dd><dt>가사 싱크</dt><dd>${hasSync(s.id)?`있음 ✓ (${times.filter(t=>t!=null).length}줄)`:'없음'}</dd></dl>
       ${noteOf(s)?`<div class="note">${esc(noteOf(s))}</div>`:''}
       ${(()=>{ const vs = versionsOf(s.id); return vs.length ? `<div class="scn"><div class="tiny" style="margin-bottom:8px">이 곡의 다른 버전</div>${vs.map(x=>`<button class="scn-l" data-chip="${x}"><span class="jp">${SONGS[x].live?'LIVE':SONGS[x].rr?'再':'原'}</span>${esc(ALB[SONGS[x].album].kr)} · ${ALB[SONGS[x].album].date}${state.hasAudio.has(x)?' ▶':''}</button>`).join('')}</div>` : ''; })()}
+      ${(()=>{ const k = sagaOfAlbum(SONGS[s.orig||'']?.album || s.album); if (k < 0) return ''; const c = SAGA.chapters[k]; return `<div class="scn"><div class="tiny" style="margin-bottom:8px">이어 읽기에서 이 곡의 자리</div><button class="scn-l" data-go="#/saga/${k}"><span class="jp">${c.mark}</span>${esc(c.title)} →</button></div>`; })()}
       ${sc.length?`<div class="scn"><div class="tiny" style="margin-bottom:8px">이 곡이 나오는 이야기</div>${sc.map(x=>`<button class="scn-l" data-go="#/read/${x.arc}#sc-${x.arc}-${x.i}"><span class="jp">${'一二三四五六七八九十'[x.i]||x.i+1}</span>${esc(STORY.arcs.find(a=>a.id===x.arc).title)} · ${esc(x.t)} →</button>`).join('')}</div>`:''}
       <div class="links"><label class="btn">${ic('music')} 음원 연결<input type="file" accept="audio/*" data-link="${s.id}" hidden></label>${state.hasAudio.has(s.id)?`<button class="btn" data-act="unlink" data-id="${s.id}">${ic('trash')} 연결 해제</button>`:''}
         ${(()=>{ const y = ytOf(s.id); return y ? `<a class="btn" target="_blank" rel="noopener" href="${y.v ? 'https://www.youtube.com/watch?v='+y.v : 'https://www.youtube.com/watch?list='+y.list+'&index='+(y.index+1)}">${ic('link')} 공식 영상 열기</a>` : `<a class="btn" target="_blank" rel="noopener" href="https://www.youtube.com/results?search_query=${q}">${ic('link')} YouTube 검색</a>`; })()}
