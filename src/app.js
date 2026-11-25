@@ -226,7 +226,7 @@ function artSvg(aid){
 function accentFor(hex){ if (document.documentElement.dataset.mode!=='night') return hex; const n = parseInt(hex.slice(1),16); const m = c => Math.round(c + (255-c)*0.48); return '#'+[m(n>>16&255),m(n>>8&255),m(n&255)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 function setAccent(hex){ document.documentElement.style.setProperty('--accent', accentFor(hex)); }
 /* =================== 라우팅 =================== */
-const routes = { home:vHome, albums:vAlbums, album:vAlbum, playlists:vPlaylists, playlist:vPlaylist, story:vStory, read:vRead, versions:vVersions, favs:vFavs, search:vSearch, settings:vSettings };
+const routes = { home:vHome, all:vAll, albums:vAlbums, album:vAlbum, playlists:vPlaylists, playlist:vPlaylist, story:vStory, read:vRead, versions:vVersions, favs:vFavs, search:vSearch, settings:vSettings };
 function go(h){ location.hash = h; }
 function render(){
   const [r, p] = (location.hash.slice(2) || 'home').split('/');
@@ -234,7 +234,8 @@ function render(){
   if (r!=='album') document.documentElement.style.setProperty('--accent', document.documentElement.dataset.mode==='night'?'#8fb4dc':'#3f6f9a');
   closeNP();
   const m = $('#main'); m.innerHTML = `<div class="view">${fn(p ? decodeURIComponent(p) : undefined)}</div>`; m.scrollTop = 0;
-  document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === (r==='album'||r==='versions'?'albums':r==='playlist'?'playlists':r==='read'?'story':r)));
+  const nk = r==='album'||r==='versions'?'albums':r==='playlist'?'playlists':r==='read'?'story':r;
+  document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === nk || (nk==='all' && n.dataset.nav==='albums' && n.closest('#tabs'))));
   markPlaying();
   if (r==='search'){ const s=$('#q'); s && (s.focus(), s.setSelectionRange(s.value.length,s.value.length)); }
 }
@@ -243,10 +244,12 @@ window.addEventListener('hashchange', render);
 /* =================== 뷰 =================== */
 function trackRow(id, i, ctx){
   const s = SONGS[id]; const fav = state.favs.has(id); const a = ALB[s.album];
+  const mixed = ctx.startsWith('pl:') || ['favs','search','search-rec','all'].includes(ctx);   // 여러 앨범이 섞인 목록
+  const grouped = ctx === 'all' && state.allOpt.sort === 'album';   // 앨범 머리줄이 이미 있음 → 태그 생략
   return `<div class="tr" data-id="${id}" data-ctx="${esc(ctx)}" data-i="${i}">
-    <div class="n">${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search'||ctx==='search-rec' ? `<div class="art" style="width:34px;height:34px;border-radius:5px;overflow:hidden">${art(s.album)}</div>` : s.no}</div>
-    <div><div class="k">${esc(s.kr)}${state.hasAudio.has(id)?'<span class="dot" title="음원 있음"></span>':(extOn() && streamable(id))?`<span class="dot yt" title="${esc(extName())}에서 재생"></span>`:ytOf(id)?'<span class="dot yt" title="YouTube 공식 영상으로 재생"></span>':''}${s.inst?' <span class="chip">연주곡</span>':''}${s.isNew?' <span class="chip new">NEW</span>':''}${s.untr?' <span class="chip">번역 전</span>':''}${s.auto?' <span class="chip">자동 번역</span>':''}</div>
-      <div class="jj">${esc(s.jp)}${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search'||ctx==='search-rec' ? ' · '+esc(a.kr):''}</div></div>
+    <div class="n">${mixed && !grouped ? `<div class="art" style="width:34px;height:34px;border-radius:5px;overflow:hidden">${art(s.album)}</div>` : s.no}</div>
+    <div><div class="k">${esc(s.kr)}${mixed && !grouped ? `<span class="atag" title="${esc(a.jp)}">${esc(a.kr)}</span>` : ''}${state.hasAudio.has(id)?'<span class="dot" title="음원 있음"></span>':(extOn() && streamable(id))?`<span class="dot yt" title="${esc(extName())}에서 재생"></span>`:ytOf(id)?'<span class="dot yt" title="YouTube 공식 영상으로 재생"></span>':''}${s.inst?' <span class="chip">연주곡</span>':''}${s.isNew?' <span class="chip new">NEW</span>':''}${s.untr?' <span class="chip">번역 전</span>':''}${s.auto?' <span class="chip">자동 번역</span>':''}</div>
+      <div class="jj">${mixed && !grouped ? `<span class="atag s">${esc(a.kr)}</span>` : ''}${esc(s.jp)}${mixed && !grouped ? '<span class="ajp"> · <span class="jp">'+esc(a.jp)+'</span></span>' : ''}</div></div>
     <div class="m">${ctx.startsWith('pl:') ? `<button class="ibtn" data-act="mvup" title="위로">${ic('up')}</button><button class="ibtn" data-act="mvdn" title="아래로">${ic('down')}</button><button class="ibtn" data-act="rm" title="빼기">${ic('x')}</button>` : ''}
       <button class="ibtn ${fav?'on':''}" data-act="fav" title="좋아요">${ic(fav?'heartF':'heart')}</button>
       <button class="ibtn" data-act="add" title="플레이리스트에 추가">${ic('plus')}</button></div>
@@ -256,6 +259,7 @@ function ctxList(ctx){
   if (ctx.startsWith('alb:')) return ALB[ctx.slice(4)].tracks.map((_,i)=>ctx.slice(4)+'-'+(i+1));
   if (ctx.startsWith('pl:')) return (state.playlists.find(p=>p.id===ctx.slice(3))||{songs:[]}).songs;
   if (ctx==='favs') return ORDER.filter(id=>state.favs.has(id));
+  if (ctx==='all') return allIds();
   if (ctx==='search') return searchIds($('#q')?.value||'');
   return [];
 }
@@ -270,14 +274,41 @@ function vHome(){
       <div class="vt">ヨルシカ</div></section>
     ${rec.length?`<div class="sec-t"><h2>최근 들은 곡</h2><span>最近</span></div><div class="card tl rec ${state.recOpen?'open':''}">${rec.map((id,i)=>i ? trackRow(id,i,'search-rec').replace('class="tr"','class="tr rec-x"') : trackRow(id,i,'search-rec')).join('')}
       ${rec.length>1?`<button class="rec-tog" data-act="recmore" aria-expanded="${state.recOpen?'true':'false'}" title="${state.recOpen?'접기':'최근 5곡 보기'}">${ic('down',2)}<span>${state.recOpen?'접기':`${rec.length-1}곡 더 보기`}</span></button>`:''}</div>`:''}
-    <div class="sec-t"><h2>앨범</h2><span>ディスコグラフィ</span></div>${shelf()}
+    <div class="sec-t"><h2>앨범</h2><span>ディスコグラフィ</span><a class="sec-more" href="#/all">전곡 ${ORDER.filter(x=>!SONGS[x].live).length}곡 보기 →</a></div>${shelf()}
     <div class="sec-t"><h2>라이브</h2><span>ライブ</span></div>${shelf(ALBUMS.filter(a=>a.live))}
     <div class="sec-t"><h2>이야기 지도</h2><span>物語</span></div>
     <div class="arc-mini" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px">${STORY.arcs.map(a=>`<div class="card" style="padding:18px;cursor:pointer" data-go="#/read/${a.id}"><div class="tiny jp">${a.era}</div><div class="kr" style="font-weight:700;font-size:16px">${a.title}</div></div>`).join('')}</div>`;
 }
 function shelf(list){ list = list || ALBUMS.filter(a=>!a.live); return `<div class="shelf">${list.map(a=>`<div class="alb" data-go="#/album/${a.id}"><div class="art">${art(a.id)}${a.extra?'<span class="newb">NEW</span>':''}</div><div class="t">${esc(a.kr)}</div><div class="j">${esc(a.jp)}</div><div class="y">${a.date} · ${a.type}</div></div>`).join('')}</div>`; }
+const pageSeg = on => `<div class="seg page-seg"><a href="#/albums" class="${on==='albums'?'on':''}">앨범</a><a href="#/all" class="${on==='all'?'on':''}">전곡 ${ORDER.filter(x=>!SONGS[x].live).length}</a></div>`;
+state.allOpt = { sort:'album', live:false, inst:true, q:'', ...LS.get('allOpt', {}) };
+function allIds(){
+  const o = state.allOpt, q = norm(o.q || '');
+  let ids = ORDER.filter(id => { const s = SONGS[id]; if (s.live && !o.live) return false; if (s.inst && !o.inst) return false;
+    return !q || norm(s.jp).includes(q) || norm(s.kr).includes(q) || norm(ALB[s.album].kr).includes(q) || norm(ALB[s.album].jp).includes(q); });
+  if (o.sort === 'kr') ids = ids.sort((a,b) => SONGS[a].kr.localeCompare(SONGS[b].kr, 'ko'));
+  else if (o.sort === 'jp') ids = ids.sort((a,b) => SONGS[a].jp.localeCompare(SONGS[b].jp, 'ja'));
+  return ids;
+}
+function allList(ids){
+  if (!ids.length) return '<div class="empty card">찾는 곡이 없어요.</div>';
+  let h = '', last = '';
+  ids.forEach((x, i) => { const al = SONGS[x].album;
+    if (state.allOpt.sort === 'album' && al !== last){ last = al; h += `<div class="all-h" data-go="#/album/${al}"><span class="art">${art(al)}</span><b class="kr">${esc(ALB[al].kr)}</b><span class="jp tiny">${esc(ALB[al].jp)} · ${ALB[al].date}</span></div>`; }
+    h += trackRow(x, i, 'all'); });
+  return `<div class="card tl">${h}</div>`;
+}
+function vAll(){
+  const o = state.allOpt, ids = allIds();
+  return `${pageSeg('all')}<h1 class="page">전곡</h1><p class="page-sub" id="allCnt">全曲 · ${ids.length}곡</p>
+  <div class="acts" style="margin-bottom:14px"><button class="btn pri" data-play="all">${ic('play')} 전곡 재생</button><button class="btn" data-play="all" data-shuf="1">${ic('shuf')} 셔플</button><button class="btn" data-addall="all">${ic('plus')} 전부 담기</button></div>
+  <div class="all-tools"><div class="search sm">${ic('search')}<input id="allq" value="${esc(o.q||'')}" placeholder="제목·앨범으로 좁히기"></div>
+    <div class="seg">${[['album','앨범순'],['kr','가나다'],['jp','あいう']].map(([k,l])=>`<button data-allsort="${k}" class="${o.sort===k?'on':''}">${l}</button>`).join('')}</div>
+    <button class="btn sm ${o.live?'pri':''}" data-allopt="live">${o.live?'✓ ':''}라이브 포함</button><button class="btn sm ${o.inst?'':'pri'}" data-allopt="inst">${o.inst?'':'✓ '}연주곡 빼기</button></div>
+  <div id="allres">${allList(ids)}</div>`;
+}
 function vAlbums(){ const st = ALBUMS.filter(a=>!a.live), lv = ALBUMS.filter(a=>a.live);
-  return `<h1 class="page">앨범</h1><p class="page-sub">アルバム · 스튜디오 ${st.length} · 라이브 ${lv.length}</p>${shelf(st)}
+  return `${pageSeg('albums')}<h1 class="page">앨범</h1><p class="page-sub">アルバム · 스튜디오 ${st.length} · 라이브 ${lv.length}</p>${shelf(st)}
   <div class="sec-t"><h2>라이브</h2><span>ライブ映像作品</span></div>${shelf(lv)}
   <div class="sec-t"><h2>재녹음 · 다른 버전</h2><span>Re-Recording</span></div>${verCard()}`; }
 function verCard(){ return `<div class="card ver-link" data-go="#/versions"><div><b class="kr">원곡과 재녹음, 라이브를 나란히</b><div class="tiny">재녹음 ${ORDER.filter(id=>SONGS[id].rr).length}곡 · 라이브 ${ALBUMS.filter(a=>a.live).length}편 · 버전이 여러 개인 곡 ${[...VER.values()].filter(v=>v.length>1).length}곡</div></div><span class="ibtn">${ic('next')}</span></div>`; }
@@ -384,7 +415,9 @@ function vSettings(){
     <p class="tiny" style="margin:12px 0 0">· 알림 접근 권한은 '지금 재생 중인 곡'을 읽고 재생 명령을 보내는 데만 써요. 알림 내용은 읽거나 저장하지 않아요.<br>· Spotify 무료는 곡을 골라 듣는 시간이 하루 단위로 제한되고 광고가 나와요. YouTube Music은 Premium이어야 백그라운드 재생이 돼요.<br>· 라이브 영상 작품은 스트리밍 음원이 없어 YouTube 공식 영상으로 재생해요.<br>· 연동 앱이 꺼져 있으면 첫 곡은 그 앱이 열리면서 시작될 수 있어요. 그다음부터는 이 앱에서 누르는 대로 바로 바뀌어요.</p></div>`; })()}
   <div class="card set"><h3>음원 가져오기</h3><p>갖고 있는 음원 파일(mp3, m4a, flac 등)을 고르면 파일 이름으로 곡을 자동 연결합니다. 파일은 이 기기 안에만 저장됩니다. 연결 안 된 파일은 곡 화면의 '음원 연결'로 직접 지정할 수 있어요.</p>
     <label class="btn pri">${ic('music')} 파일 고르기<input type="file" id="audIn" accept="audio/*" multiple hidden></label> <span class="tiny">현재 ${nAud}곡 연결됨</span><div class="prog" id="audProg" style="display:none"><i></i></div><div id="audRes" class="tiny" style="margin-top:8px">${lastImport}</div></div>
-  <div class="card set"><h3>가사</h3><p>가사는 곡 화면 → '가사 편집'에서 일본어 원문과 한국어 번역을 붙여 넣어 저장합니다. 줄 단위로 짝지어 보여 줍니다. 현재 ${nLy}곡 저장됨.</p>
+  <div class="card set"><h3>가사</h3><p>곡 화면을 열면 공개 커뮤니티 가사 DB(LRCLIB)에서 일본어 가사를 찾아 오고, 시간 정보가 있으면 싱크도 함께 들어와요. 한국어는 MyMemory 기계 번역으로 채워요(어색한 줄은 '가사 편집'에서 고칠 수 있고, 직접 넣은 가사는 덮어쓰지 않아요). 현재 ${nLy}곡 저장됨.</p>
+    <div class="upd-row"><button class="btn sm" data-act="lyrauto">${lyrAuto()?'✓ ':''}가사 자동으로 불러오기 ${lyrAuto()?'켬':'끔'}</button><button class="btn sm" data-act="lyrkr">${lyrKrAuto()?'✓ ':''}한국어 자동 번역 ${lyrKrAuto()?'켬':'끔'}</button><button class="btn sm" data-act="mtmail">번역 한도 늘리기${LS.get('mtEmail','') ? ' ✓' : ''}</button></div>
+    <p class="tiny" style="margin:10px 0 12px">무료 번역은 하루 사용량 제한이 있어요(이메일 없이 5,000자, 이메일을 넣으면 50,000자). 한 곡 번역에 보통 수백 자가 들어요.</p>
     <a class="btn" href="https://yorushika.com/" target="_blank" rel="noopener">${ic('link')} 요루시카 공식 사이트</a></div>
   <div class="card set"><h3>백업 · 복원</h3><p>가사, 플레이리스트, 좋아요를 JSON 파일 하나로 내보내고, 다른 기기(PC ↔ 폰)에서 불러올 수 있습니다. 음원은 포함되지 않습니다.</p>
     <button class="btn" data-act="export">${ic('down')} 내보내기</button> <label class="btn">${ic('file')} 불러오기<input type="file" id="impIn" accept="application/json,.json" hidden></label></div>
@@ -463,7 +496,7 @@ function renderNP(){
     <div style="display:flex;gap:6px"><button class="ibtn ${state.favs.has(s.id)?'on':''}" data-act="fav" data-id="${s.id}">${ic(state.favs.has(s.id)?'heartF':'heart')}</button><button class="ibtn" data-act="add" data-id="${s.id}">${ic('plus')}</button></div>
   </div>
   <div class="rgt2"><div class="np-top">
-    ${state.imm?`<button class="ibtn" data-act="imm" title="몰입 해제">${ic('down',2)}</button>${isCur?`<button class="play sm" data-act="toggle" id="npPlay2">${ic(audio.paused?'play':'pause')}</button>`:''}<div class="imm-t"><b class="kr">${esc(s.kr)}</b> <span class="jp tiny">${esc(s.jp)}</span></div>`
+    ${state.imm?`<button class="ibtn" data-act="imm" title="몰입 해제">${ic('down',2)}</button>${isCur?`<button class="play sm" data-act="toggle" id="npPlay2">${ic(audio.paused?'play':'pause')}</button>`:''}<div class="imm-t"><b class="kr">${esc(s.kr)}</b> <span class="jp tiny">${esc(s.jp)}</span> <span class="tiny">· ${esc(a.kr)}</span></div>`
       :`<div class="seg">${tabs.map(t=>`<button data-np="${t[0]}" class="${state.npTab===t[0]?'on':''}">${t[1]}${t[0]==='sync'&&hasSync(s.id)?' ●':''}</button>`).join('')}</div>`}
     ${state.npTab==='lyr'||state.imm?`<div class="np-tools"><div class="seg">${[['pair','함께'],['side','나란히'],['jp','日'],['kr','한'],['focus','집중']].map(t=>`<button data-lm="${t[0]}" class="${state.lyrMode===t[0]?'on':''}">${t[1]}</button>`).join('')}</div>
       <button class="ibtn" data-act="lsz" data-d="-0.1" title="글자 작게">${ic('aminus')}</button><button class="ibtn" data-act="lsz" data-d="0.1" title="글자 크게">${ic('aplus')}</button>
@@ -472,7 +505,7 @@ function renderNP(){
     <div class="np-body">${npBody(s)}</div></div>`;
   syncTime(); lastLi = -2; startTick(true);
   if ($('#focus') && npSong!==cur()) applyHL(-1);
-  posYT();
+  posYT(); ensureLyrics(npSong);
 }
 /* 라이브 곡 구간 맞추기: 공연 전체 영상에서 이 곡이 시작·끝나는 지점을 저장 */
 function segBox(s){
@@ -503,6 +536,9 @@ function npBody(s){
   if (tab==='sync') return syncBody(s);
   /* 가사 */
   if (s.inst) return `<div class="lyr-empty"><div class="big">〜</div>가사가 없는 연주곡이에요.<br>소리에 귀를 기울여 보세요.</div>`;
+  const lst = lyrStat[lyrTarget(s.id)] || '';
+  if (!L.jp && !L.kr && lst === 'loading') return `<div class="lyr-empty"><div class="big">詞</div>가사를 찾는 중이에요…</div>`;
+  if (!L.jp && !L.kr && (lst === 'miss' || lst === 'error')) return `<div class="lyr-empty"><div class="big">詞</div>${lst === 'miss' ? '공개 가사 DB(LRCLIB)에서 이 곡의 가사를 찾지 못했어요.' : '가사를 불러오지 못했어요 — 인터넷 연결을 확인해 주세요.'}<br><br><button class="btn" data-act="lyrfind" data-id="${s.id}">${ic('rep')} 다시 찾기</button> <button class="btn" data-np="edit">${ic('edit')} 직접 넣기</button></div>`;
   if (!L.jp && !L.kr) return `<div class="lyr-empty"><div class="big">詞</div>${s.orig?`원곡 「${esc(ALB[SONGS[s.orig].album].kr)}」에도 아직 가사가 없어요.<br>원곡에 가사를 넣으면 이 버전에도 함께 보여요.<br><br>`:''}아직 저장된 가사가 없어요.<br>'가사 편집'에 일본어 원문과 한국어 번역을 붙여 넣으면<br>여기서 두 언어를 함께 볼 수 있어요.<br><br><button class="btn" data-np="edit">${ic('edit')} 가사 편집하기</button></div>`;
   const synced = hasSync(s.id); const mode = state.lyrMode; const live = synced && cur()===s.id;
   const bor = lyrOf(s.id).borrowed; const borNote = bor ? `<div class="sync-bar" style="background:none;border:1px dashed var(--line)">${ic('book')} 원곡 「${esc(ALB[SONGS[bor].album].kr)}」의 가사를 보여 주고 있어요${s.live?' · 라이브 편곡과 다를 수 있어요':''}</div>` : '';
@@ -520,7 +556,11 @@ function npBody(s){
     if (mode==='kr'){ if(b) h += `<div class="ln"><div class="lkr" ${d}>${esc(b)}</div></div>`; continue; }
     h += `<div class="ln"><div class="ljp" ${d}>${esc(a)||'&nbsp;'}</div><div class="lkr" ${d}>${esc(b)||'&nbsp;'}</div></div>`;
   }
-  return borNote + bar + `<div class="lyr ${mode==='side'?'side':''} ${mode==='kr'?'only-kr':''} ${synced?'synced':''}">${h}<div style="height:30vh"></div></div>`;
+  const tr = lst.startsWith('tr:') ? `<div class="sync-bar" style="background:none;border:1px dashed var(--line)">${ic('rep')} 한국어 번역 중… ${lst.slice(3)}</div>`
+    : lst === 'quota' ? `<div class="sync-bar" style="background:none;border:1px dashed var(--line)">오늘 쓸 수 있는 무료 번역량을 다 썼어요 — 내일 이어서 번역하거나, 설정 → 가사에 이메일을 넣으면 한도가 늘어요</div>`
+    : (L.jp && !(L.kr||'').trim()) ? `<div class="sync-bar" style="background:none;border:1px dashed var(--line)">한국어 번역이 없어요<button class="btn sm" data-act="lyrtr" data-id="${s.id}" style="margin-left:auto">한국어 자동 번역</button></div>` : '';
+  const src = (L.src === 'lrclib' || lyrOf(s.id).borrowed) ? `<div class="lyr-src tiny">가사 출처: LRCLIB 공개 가사 DB${L.krAuto ? ' · 한국어는 기계 번역(MyMemory)이라 어색할 수 있어요' : ''} · <button class="linkbtn" data-act="lyrfind" data-id="${s.id}">다시 찾기</button> · <button class="linkbtn" data-np="edit">고치기</button></div>` : '';
+  return borNote + tr + bar + `<div class="lyr ${mode==='side'?'side':''} ${mode==='kr'?'only-kr':''} ${synced?'synced':''}">${h}${src}<div style="height:30vh"></div></div>`;
 }
 
 /* ---- 가사 싱크: 하이라이트 ---- */
@@ -571,7 +611,7 @@ function syncBody(s){
   const {L, jp, kr} = lyrOf(s.id);
   if (s.inst) return `<div class="lyr-empty"><div class="big">〜</div>연주곡은 싱크가 필요 없어요.</div>`;
   if (!(L.jp||'').trim()) return `<div class="lyr-empty"><div class="big">時</div>먼저 '가사 편집'에서 일본어 원문을 넣어 주세요.<br>LRC 파일이 있다면 거기서 한 번에 넣을 수도 있어요.<br><br><button class="btn" data-np="edit">${ic('edit')} 가사 편집</button></div>`;
-  if (!state.hasAudio.has(s.id)) return `<div class="lyr-empty"><div class="big">♪</div>싱크를 기록하려면 이 곡의 음원이 필요해요.<br><br><button class="btn" data-np="info">${ic('music')} 음원 연결하기</button></div>`;
+  if (!playable(s.id)) return `<div class="lyr-empty"><div class="big">♪</div>싱크를 기록하려면 이 곡을 재생할 수 있어야 해요.<br><br><button class="btn" data-np="info">${ic('music')} 음원·영상 연결하기</button></div>`;
   if (cur()!==s.id) return `<div class="lyr-empty"><div class="big">♪</div>이 곡을 재생하면 싱크를 기록할 수 있어요.<br><br><button class="btn pri" data-playone="${s.id}">${ic('play')} 이 곡 재생</button></div>`;
   const r = ensureRec(s.id); const total = jp.filter(x=>x.trim()).length, done = r.times.filter((t,i)=>t!=null && (jp[i]||'').trim()).length;
   const i = r.idx, nx = i>=0 ? nextNB(jp, i+1) : -1;
@@ -835,7 +875,7 @@ async function loadAndPlay(startAt=0, autoplay=true){
   audio.use(localEng);
   if (NATIVE){
     if (!state.hasAudio.has(id)){ if (autoplay) toast(`「${SONGS[id].kr}」 음원이 없어요 — 설정에서 가져오기`); updateBar(); return false; }
-    const items = state.queue.map(x => { const s = SONGS[x], a = ALB[s.album]; return { id:x, title:s.kr, artist:'ヨルシカ · ' + s.jp, album:a.kr + ' · ' + a.jp, art: a.extra ? '' : a.id, artUrl: coverOf(a.id, 600) }; });
+    const items = state.queue.map(x => { const s = SONGS[x], a = ALB[s.album]; return { id:x, title:s.kr, artist:'ヨルシカ · ' + s.jp + ' · ' + a.kr, album:a.kr + ' · ' + a.jp, art: a.extra ? '' : a.id, artUrl: coverOf(a.id, 600) }; });
     try{ YoruNative.setQueue(JSON.stringify(items), state.qi, Math.round(startAt*1000), !!autoplay); YoruNative.setRepeat(state.repeat); }catch(e){ toast('플레이어를 시작하지 못했어요'); return false; }
     loadedId = id; localEng._t = startAt; localEng._at = performance.now(); localEng._p = !autoplay; nativeLastId = id;
     if (autoplay){ state.recent = [id, ...state.recent.filter(x=>x!==id)].slice(0,30); LS.set('recent', state.recent); }
@@ -950,8 +990,10 @@ function syncTime(){
   const rw = $('#ytRaw'); if (rw) rw.textContent = fmtR(ytEng.raw);
   if ('mediaSession' in navigator && audio.duration && navigator.mediaSession.setPositionState){ try{ navigator.mediaSession.setPositionState({duration:audio.duration,position:audio.currentTime,playbackRate:1}); }catch(e){} }
 }
+let lastLyrPre = null;
 function updateBar(){
   const id = cur(); const s = SONGS[id];
+  if (id && id !== lastLyrPre){ lastLyrPre = id; setTimeout(() => ensureLyrics(id), 400); }   // 재생하는 곡 가사를 미리 받아 둔다
   $('#pNow').innerHTML = s ? `<div class="art">${art(s.album)}</div><div class="tx"><div class="k">${esc(s.kr)}</div><div class="j">${audio.eng===ytEng?'<b class="ytm">YouTube</b> ':audio.eng===extEng?`<b class="ytm">${esc(EXT_APPS[extInfo.pkg]||extName())}</b> `:''}${esc(s.jp)} · ${esc(ALB[s.album].kr)}</div></div>`
     : `<div class="art" style="display:grid;place-items:center;background:var(--line)">${ic('music')}</div><div class="tx"><div class="k">재생 중인 곡 없음</div><div class="j">ヨルシカ</div></div>`;
   $('#pPlay').innerHTML = ic(audio.paused?'play':'pause'); const np = $('#npPlay'); if (np) np.innerHTML = ic(audio.paused?'play':'pause'); const np2 = $('#npPlay2'); if (np2) np2.innerHTML = ic(audio.paused?'play':'pause');
@@ -985,11 +1027,11 @@ function dismissPlayer(){
   el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
   el.addEventListener('click', e => { if (el._swiped && Date.now() - el._swiped < 400){ e.stopPropagation(); e.preventDefault(); } }, true);
 })();
-function markPlaying(){ document.querySelectorAll('.tr').forEach(r=>{ const on = r.dataset.id===cur(); r.classList.toggle('playing', on); const n=r.querySelector('.n'); if(on && !r.dataset.ctx.startsWith('pl:') && !['favs','search','search-rec'].includes(r.dataset.ctx)){ n.innerHTML = `<span class="eq ${audio.paused?'paused':''}"><i></i><i></i><i></i></span>`; r.classList.toggle('paused', audio.paused);} }); }
+function markPlaying(){ document.querySelectorAll('.tr').forEach(r=>{ const on = r.dataset.id===cur(); r.classList.toggle('playing', on); const n=r.querySelector('.n'); if(on && !r.dataset.ctx.startsWith('pl:') && !['favs','search','search-rec','all'].includes(r.dataset.ctx)){ n.innerHTML = `<span class="eq ${audio.paused?'paused':''}"><i></i><i></i><i></i></span>`; r.classList.toggle('paused', audio.paused);} }); }
 function artURL(aid){ return coverOf(aid, 512) || (ALB[aid]?.extra ? 'icon-512.png' : `art/${aid}.png`); }
 function mediaSession(){
   if (!('mediaSession' in navigator)) return; const s = SONGS[cur()]; if(!s) return; const a = ALB[s.album];
-  try{ navigator.mediaSession.metadata = new MediaMetadata({ title: s.kr, artist: `ヨルシカ · ${s.jp}`, album: `${a.kr} · ${a.jp}`,
+  try{ navigator.mediaSession.metadata = new MediaMetadata({ title: s.kr, artist: `ヨルシカ · ${s.jp} · ${a.kr}`, album: `${a.kr} · ${a.jp}`,
     artwork: [96,192,512].map(n => ({ src: artURL(a.id), sizes: `${n}x${n}`, type: 'image/png' })) }); }catch(e){}
 }
 function setupMediaKeys(){
@@ -1159,8 +1201,9 @@ async function checkApk(){
 /* =================== 제목 자동 번역 =================== */
 async function mt(text){
   const rr = /\s*\((Re-?Recording)\)\s*$/i; const tail = rr.test(text) ? ' (재녹음)' : ''; const q = text.replace(rr, '').trim();
-  const r = await fetch('https://api.mymemory.translated.net/get?langpair=ja|ko&q=' + encodeURIComponent(q)); if (!r.ok) throw new Error('mt ' + r.status);
+  const em = LS.get('mtEmail', ''); const r = await fetch('https://api.mymemory.translated.net/get?langpair=ja|ko&q=' + encodeURIComponent(q) + (em ? '&de=' + encodeURIComponent(em) : '')); if (!r.ok) throw new Error('mt ' + r.status);
   const d = await r.json(); let t = String(d?.responseData?.translatedText || '').trim();
+  if (/ALL AVAILABLE FREE TRANSLATIONS|QUOTA/i.test(t) || +d.responseStatus === 429) { const e = new Error('quota'); e.quota = true; throw e; }
   if (+d.responseStatus !== 200 || !t || /MYMEMORY|QUERY LENGTH|INVALID|LIMIT/i.test(t)) throw new Error('mt fail');
   t = t.replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/^["'「]|["'」]$/g,'');
   return t + tail;
@@ -1176,6 +1219,75 @@ async function autoTranslate(manual){
   if (n){ LS.set('extra', ex); applyExtras(); buildIndex(); render(); }
   if (manual) toast(n ? `${n}개 제목을 자동 번역했어요${fail?` · ${fail}개 실패`:''}` : (jobs.length ? '지금은 번역할 수 없어요. 인터넷 연결을 확인해 주세요.' : '번역할 제목이 없어요'));
   return n;
+}
+/* ---- 가사 자동 불러오기: LRCLIB(공개 커뮤니티 가사 DB) → 일본어 원문·싱크, MyMemory 기계 번역 → 한국어 ---- */
+const LRC_API = 'https://lrclib.net/api/';
+const lyrBusy = new Map(), lyrTrBusy = new Map(), lyrStat = {};
+const lyrAuto = () => LS.get('lyrAuto', true), lyrKrAuto = () => LS.get('lyrKrAuto', true);
+const lyrTarget = id => { const s = SONGS[id]; return s && s.live && s.orig ? s.orig : id; };   // 라이브는 원곡 가사를 쓴다
+async function lrcSearch(params){ const r = await fetch(LRC_API + 'search?' + new URLSearchParams(params)); if (!r.ok) throw new Error('lrclib ' + r.status); return r.json(); }
+function pickLrc(list, s){
+  const j = norm(s.jp), al = ALB[s.album], alKeys = [al.jp, ...(ALB_EN[al.id] || [])].map(albKey);
+  let best = null, bs = -1e9;
+  for (const x of (Array.isArray(list) ? list : [])){
+    if (!/ヨルシカ|yorushika/i.test(x.artistName || '')) continue;
+    const t = norm(x.trackName || ''); if (!t || !(t === j || t.startsWith(j) || j.startsWith(t))) continue;
+    if (x.instrumental || (!x.plainLyrics && !x.syncedLyrics)) continue;
+    let sc = (x.syncedLyrics ? 10 : 0) + (alKeys.includes(albKey(x.albumName || '')) ? 6 : 0) + ((/re-?record/i.test(x.trackName || '')) === !!s.rr ? 4 : 0) + (t === j ? 3 : 0);
+    const d = audio.duration; if (cur() === s.id && isFinite(d) && x.duration) sc -= Math.min(8, Math.abs(x.duration - d) / 4);
+    if (sc > bs){ bs = sc; best = x; } }
+  return best;
+}
+function fetchLyrics(id, force){
+  const tid = lyrTarget(id), s = SONGS[tid]; if (!s || s.inst) return Promise.resolve(false);
+  if (lyrBusy.has(tid)) return lyrBusy.get(tid);
+  const p = (async () => {
+    let hit = null, err = null; const t = baseTitle(s.jp);
+    for (const q of [{ track_name:t, artist_name:'ヨルシカ' }, { track_name:t, artist_name:'Yorushika' }, { q:t + ' ヨルシカ' }]){
+      try{ hit = pickLrc(await lrcSearch(q), s); }catch(e){ err = e; } if (hit) break; }
+    if (!hit){ if (err) throw err; const M = LS.get('lyrMiss', {}); M[tid] = Date.now(); LS.set('lyrMiss', M); return false; }
+    let jp = '', times = null;
+    if (hit.syncedLyrics){ const L = parseLRC(hit.syncedLyrics).filter(x => x.text); jp = L.map(x => x.text).join('\n'); times = L.map(x => x.t); }
+    else jp = String(hit.plainLyrics || '').replace(/\r/g, '').trim();
+    if (!jp) return false;
+    const old = state.lyrics[tid] || {};
+    if ((old.jp || '').trim() && old.src !== 'lrclib' && !force) return true;      // 직접 넣은 가사는 덮어쓰지 않는다
+    const keepKr = old.kr && old.src !== 'lrclib' && !force;
+    state.lyrics[tid] = { ...old, jp, kr: keepKr ? old.kr : '', times: times || undefined, offset: old.offset || 0, src:'lrclib', lrcId: hit.id, krAuto: false };
+    if (!times) delete state.lyrics[tid].times;
+    LS.set('lyrics', state.lyrics); return true;
+  })().finally(() => lyrBusy.delete(tid));
+  lyrBusy.set(tid, p); return p;
+}
+function translateLyrics(id){
+  const tid = lyrTarget(id); if (lyrTrBusy.has(tid)) return lyrTrBusy.get(tid);
+  const L = state.lyrics[tid]; if (!L || !(L.jp || '').trim()) return Promise.resolve(false);
+  const lines = L.jp.replace(/\r/g, '').split('\n'), uniq = [...new Set(lines.map(x => x.trim()).filter(Boolean))];   // 반복되는 후렴은 한 번만
+  const memo = {}; let done = 0, quota = false;
+  const p = (async () => {
+    const work = uniq.slice(); const run = async () => { while (work.length && !quota){ const u = work.shift();
+      try{ memo[u] = await mt(u); }catch(e){ if (e.quota) quota = true; memo[u] = ''; } done++; lyrStat[tid] = `tr:${done}/${uniq.length}`; refreshLyr(tid); } };
+    await Promise.all([run(), run(), run()]);
+    const kr = lines.map(x => x.trim() ? (memo[x.trim()] || '') : '').join('\n');
+    if (kr.replace(/\n/g, '').trim()){ state.lyrics[tid] = { ...state.lyrics[tid], kr, krAuto: true }; LS.set('lyrics', state.lyrics); }
+    lyrStat[tid] = quota ? 'quota' : ''; refreshLyr(tid); return !quota;
+  })().finally(() => lyrTrBusy.delete(tid));
+  lyrTrBusy.set(tid, p); return p;
+}
+/* 재생 화면 가사 영역만 다시 그리기 */
+function refreshLyr(tid){
+  if (!$('#np').classList.contains('open') || !npSong || lyrTarget(npSong) !== tid || !(state.npTab === 'lyr' || state.imm)) return;
+  const b = $('.np-body'); if (!b) return; b.innerHTML = npBody(SONGS[npSong]); lastLi = -2; startTick(true);
+}
+function ensureLyrics(id){
+  if (!lyrAuto() || !id) return; const tid = lyrTarget(id), s = SONGS[tid]; if (!s || s.inst) return;
+  const L = state.lyrics[tid] || {};
+  if ((L.jp || '').trim()){ if (lyrKrAuto() && L.src === 'lrclib' && !(L.kr || '').trim() && lyrStat[tid] !== 'quota') translateLyrics(tid); return; }
+  const miss = LS.get('lyrMiss', {})[tid]; if (miss && Date.now() - miss < 864e5) { lyrStat[tid] = lyrStat[tid] || 'miss'; return; }
+  if (lyrBusy.has(tid)) return;
+  lyrStat[tid] = 'loading'; refreshLyr(tid);
+  fetchLyrics(tid).then(ok => { lyrStat[tid] = ok ? '' : 'miss'; refreshLyr(tid); if (ok && lyrKrAuto()) translateLyrics(tid); })
+    .catch(() => { lyrStat[tid] = 'error'; refreshLyr(tid); });
 }
 async function translateOne(id){
   const s = SONGS[id]; try{ const t = await mt(s.jp); const K = LS.get('krTitles',{}); K[id] = t; LS.set('krTitles', K); const A = new Set(LS.get('krAutoIds',[])); A.add(id); LS.set('krAutoIds',[...A]); buildIndex(); renderNP(); toast(`「${t}」(으)로 바꿨어요 · 마음에 안 들면 고치기`); }
@@ -1232,6 +1344,12 @@ document.addEventListener('click', e => {
     if (a==='rep'){ state.repeat = {off:'all',all:'one',one:'off'}[state.repeat]; LS.set('repeat',state.repeat); if (NATIVE){ try{ YoruNative.setRepeat(state.repeat); YoruNative.extSetRepeat(state.repeat); }catch(e){} } toast({off:'반복 끔',all:'전체 반복',one:'한 곡 반복'}[state.repeat]); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
     if (a==='closenp') return closeNP();
     if (a==='ytnp') return openNP();
+    if (a==='lyrfind'){ e.preventDefault(); const tid = lyrTarget(id); const M = LS.get('lyrMiss', {}); delete M[tid]; LS.set('lyrMiss', M); lyrStat[tid] = 'loading'; state.npTab = 'lyr'; renderNP();
+      fetchLyrics(tid, true).then(ok => { lyrStat[tid] = ok ? '' : 'miss'; toast(ok ? '가사를 다시 불러왔어요' : '가사를 찾지 못했어요'); refreshLyr(tid); if (ok && lyrKrAuto()) translateLyrics(tid); }).catch(() => { lyrStat[tid] = 'error'; refreshLyr(tid); }); return; }
+    if (a==='lyrtr'){ const tid = lyrTarget(id); lyrStat[tid] = 'tr:0/…'; refreshLyr(tid); translateLyrics(tid); return; }
+    if (a==='lyrauto'){ LS.set('lyrAuto', !lyrAuto()); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
+    if (a==='lyrkr'){ LS.set('lyrKrAuto', !lyrKrAuto()); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
+    if (a==='mtmail') return promptName('번역 한도 늘리기 (선택)', LS.get('mtEmail',''), v => { LS.set('mtEmail', /@/.test(v) ? v.trim() : ''); toast(/@/.test(v) ? '이메일을 넣었어요 — 하루 번역 한도가 늘어나요' : '이메일 형식이 아니에요'); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; });
     if (a==='recmore'){ state.recOpen = !state.recOpen; const box = act.closest('.rec'); box.classList.toggle('open', state.recOpen); act.setAttribute('aria-expanded', state.recOpen); const n = box.querySelectorAll('.rec-x').length;
       act.querySelector('span').textContent = state.recOpen ? '접기' : `${n}곡 더 보기`; act.title = state.recOpen ? '접기' : '최근 5곡 보기'; return; }
     if (a==='covers') return fetchCovers(true);
@@ -1274,7 +1392,7 @@ document.addEventListener('click', e => {
     if (a==='imm'){ state.imm = !state.imm; renderNP(); return; }
     if (a==='opennp') return openNP();
     if (a==='savely'){ const old = state.lyrics[id] || {}; const jpv = $('#edJp').value; const changed = hasSync(id) && (old.jp||'').split('\n').length !== jpv.split('\n').length;
-      state.lyrics[id] = { ...old, jp:jpv, kr:$('#edKr').value }; LS.set('lyrics', state.lyrics); rec = null; toast(changed?'저장했어요 — 원문 줄 수가 바뀌어 싱크를 확인해 주세요':'가사를 저장했어요'); state.npTab='lyr'; renderNP(); return; }
+      state.lyrics[id] = { ...old, jp:jpv, kr:$('#edKr').value, src:'user', krAuto:false }; LS.set('lyrics', state.lyrics); rec = null; toast(changed?'저장했어요 — 원문 줄 수가 바뀌어 싱크를 확인해 주세요':'가사를 저장했어요'); state.npTab='lyr'; renderNP(); return; }
     if (a==='unlink'){ (NATIVE ? Promise.resolve(YoruNative.deleteFile(id)) : IDB.del(id)).then(refreshAudio).then(()=>{ toast('연결을 해제했어요'); renderNP(); }); return; }
     if (a==='export'){ const blob = new Blob([JSON.stringify({app:'yorushika',v:1,lyrics:state.lyrics,playlists:state.playlists,favs:[...state.favs]},null,1)],{type:'application/json'}); const u=URL.createObjectURL(blob); const l=document.createElement('a'); l.href=u; l.download='yorushika-backup.json'; try{ l.click(); }catch(e){} setTimeout(()=>URL.revokeObjectURL(u),2000);
       modal(`<h3>백업 내보내기</h3><p class="tiny">파일이 내려받아지지 않으면 아래 내용을 복사해 .json 파일로 저장하세요.</p><textarea class="field" id="bk" style="min-height:180px;font-size:12px" readonly>${esc(JSON.stringify({app:'yorushika',v:1,lyrics:state.lyrics,playlists:state.playlists,favs:[...state.favs]}))}</textarea><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn" data-x="c">닫기</button><button class="btn pri" data-x="cp">복사</button></div>`);
@@ -1285,6 +1403,8 @@ document.addEventListener('click', e => {
   }
   const tp = t.closest('[data-theme-set]'); if (tp){ setTheme(tp.dataset.themeSet); render(); return; }
   const cvb = t.closest('[data-cover]'); if (cvb){ LS.set('coverMode', cvb.dataset.cover); if (cvb.dataset.cover==='official') maybeCovers(); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; updateBar(); return; }
+  const as = t.closest('[data-allsort]'); if (as){ state.allOpt.sort = as.dataset.allsort; LS.set('allOpt', state.allOpt); render(); return; }
+  const ao = t.closest('[data-allopt]'); if (ao){ const k = ao.dataset.allopt; state.allOpt[k] = !state.allOpt[k]; LS.set('allOpt', state.allOpt); render(); return; }
   const sp = t.closest('[data-srcpref]'); if (sp){ LS.set('srcPref', sp.dataset.srcpref); if (sp.dataset.srcpref==='ext' && NATIVE && !extInfo.access){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('알림 접근 권한을 켜면 연동이 시작돼요'); } const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
   const np = t.closest('[data-np]'); if (np){ state.npTab = np.dataset.np; renderNP(); if (innerWidth<=820) $('.rgt2')?.scrollIntoView({block:'start'}); return; }
   const lm = t.closest('[data-lm]'); if (lm){ state.lyrMode = lm.dataset.lm; LS.set('lyrMode', state.lyrMode); renderNP(); return; }
@@ -1304,6 +1424,7 @@ document.addEventListener('click', e => {
   if (t.closest('#pNow')) return openNP();
 });
 document.addEventListener('input', e => {
+  if (e.target.id==='allq'){ state.allOpt.q = e.target.value; LS.set('allOpt', state.allOpt); const ids = allIds(); $('#allres').innerHTML = allList(ids); $('#allCnt').textContent = `全曲 · ${ids.length}곡`; markPlaying(); }
   if (e.target.id==='q'){ const q=e.target.value; history.replaceState(null,'','#/search/'+encodeURIComponent(q)); const ids=searchIds(q); $('#sres').innerHTML = q?(ids.length?`<div class="card tl">${ids.map((x,i)=>trackRow(x,i,'search')).join('')}</div>`:'<div class="empty">찾는 곡이 없어요.</div>'):''; markPlaying(); }
   if (e.target.id==='seek' || e.target.id==='npSeek'){ e.target._drag = true; e.target.style.setProperty('--p',(e.target.value/10)+'%'); }
   if (e.target.id==='vol'){ audio.volume = +e.target.value; state.vol = audio.volume; LS.set('vol', state.vol); e.target.style.setProperty('--p', (audio.volume*100)+'%'); }
