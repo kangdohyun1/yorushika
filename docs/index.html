@@ -435,6 +435,9 @@ table.keys td{padding:8px 12px}
 .ytm{font:600 10px/1 var(--kr);letter-spacing:.04em;color:var(--accent);border:1px solid currentColor;border-radius:4px;padding:1px 4px;margin-right:2px;vertical-align:1px}
 .segbox{margin-top:10px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px}
 .segbox .upd-row{margin-top:8px}
+/* 공식 커버 */
+.awrap{position:relative;display:block;width:100%;height:100%}
+.awrap .ocov{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 </style>
 </head>
 <body>
@@ -919,7 +922,41 @@ const ic = (n, sw=1.7) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 
 applyExtras(); buildIndex();
 /* =================== 앨범 아트 (오리지널 SVG) =================== */
+/* ---- 공식 앨범 커버: Apple Music 공개 카탈로그(iTunes Lookup)의 이미지를 불러와 표시 ---- */
+const coverMode = () => LS.get('coverMode', 'official');
+let COV = LS.get('covers', {});
+function coverOf(aid, px=300){
+  if (coverMode() !== 'official') return '';
+  const u = (COV.map || {})[aid]; if (!u) return '';
+  return u.replace(/\/\d+x\d+(bb|cc)?\.(jpg|png|webp)$/i, `/${px}x${px}bb.jpg`);
+}
+const albKey = t => norm(String(t||'').replace(/\s*-\s*(Single|EP)$/i,''));
+let coverBusy = false;
+async function fetchCovers(manual){
+  if (coverBusy) return; coverBusy = true;
+  try{
+    const d = await jsonp(`${IT}?id=${UPD_CFG.itunesId}&entity=album&limit=200&country=jp&lang=ja_jp`);
+    const cols = (d.results||[]).filter(r => r.wrapperType==='collection' && r.artistId===UPD_CFG.itunesId && r.artworkUrl100)
+      .sort((x,y) => (x.releaseDate||'').localeCompare(y.releaseDate||''));          // 같은 이름이면 처음 나온 판
+    const by = {}; cols.forEach(c => { const k = albKey(c.collectionName); if (k && !by[k]) by[k] = c.artworkUrl100; });
+    const map = {};
+    ALBUMS.forEach(a => { if (a.live) return;
+      if (a.id === 'singles'){ for (let i = a.tracks.length-1; i >= 0; i--){ const u = by[albKey(a.tracks[i][0])]; if (u){ map[a.id] = u; break; } } return; }
+      const u = by[albKey(a.jp)]; if (u) map[a.id] = u; });
+    const old = JSON.stringify(COV.map || {});
+    COV = { map, at: Date.now(), n: Object.keys(map).length }; LS.set('covers', COV);
+    if (manual) toast(Object.keys(map).length ? `공식 커버 ${Object.keys(map).length}장을 불러왔어요` : '커버를 찾지 못했어요');
+    if (old !== JSON.stringify(map) || manual){ if (!$('#np').classList.contains('open')){ const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; } updateBar(); }
+  }catch(e){ if (manual) toast(/claude|anthropic/.test(location.host) ? '미리보기 화면에서는 외부 연결이 막혀 있어요 — 설치한 앱에서 불러와져요' : '커버를 불러오지 못했어요 — 인터넷 연결을 확인해 주세요'); }
+  coverBusy = false;
+}
+function maybeCovers(){ const c = COV; if (coverMode()==='official' && navigator.onLine !== false && (!c.at || Date.now() - c.at > 7*864e5)) fetchCovers(false); }
 function art(aid, big){
+  const cv = coverOf(aid, big ? 600 : 300);
+  if (cv) return `<span class="awrap">${artSvg(aid)}<img class="ocov" src="${esc(cv)}" alt="" loading="lazy" decoding="async" onerror="this.remove()"></span>`;
+  return artSvg(aid);
+}
+function artSvg(aid){
   const a = ALB[aid]; const c = a.hue, c2 = a.hue2; const t = a.jp;
   const vt = (x,y,size,fill,txt=t) => { const fs = Math.min(size, Math.floor((196-y)/(txt.length*1.1))); return `<text x="${x}" y="${y}" font-family="Shippori Mincho,serif" font-weight="800" font-size="${fs}" fill="${fill}" style="writing-mode:vertical-rl;letter-spacing:.1em">${esc(txt)}</text>`; };
   let g = '';
@@ -1099,6 +1136,9 @@ function vSettings(){
   return `<h1 class="page">설정</h1><p class="page-sub">設定</p>
   <div class="card set"><h3>테마</h3><p>자동은 저녁 7시부터 아침 6시까지 밤 테마로 바뀝니다.</p>
     <div class="seg" id="themeSeg">${['auto','day','night'].map(t=>`<button data-theme-set="${t}" class="${state.theme===t?'on':''}">${{auto:'자동',day:'낮 · 昼',night:'밤 · 夜'}[t]}</button>`).join('')}</div></div>
+  ${(()=>{ const c = COV; const m = coverMode(); return `<div class="card set"><h3>앨범 커버</h3><p>공식 커버는 Apple Music 공개 카탈로그의 앨범 이미지를 불러와 보여 줘요(인터넷이 필요하고, 한 번 본 이미지는 기기에 남아요). 라이브 영상 작품은 카탈로그에 없어서 앱 일러스트로 보여요.</p>
+    <div class="seg">${[['official','공식 커버'],['art','앱 일러스트']].map(([k,l])=>`<button data-cover="${k}" class="${m===k?'on':''}">${l}</button>`).join('')}</div>
+    <div class="upd-row" style="margin-top:12px"><button class="btn sm" data-act="covers">${ic('rep')} 커버 다시 불러오기</button><span class="tiny">${c.at ? `${c.n||0}장 · ${new Date(c.at).toLocaleDateString('ko-KR')}` : '아직 불러오지 않음'}</span></div></div>`; })()}
   ${(()=>{ const ex = getExtra(); const perm = ('Notification' in window) ? Notification.permission : 'unsupported'; const when = ex.lastCheck ? new Date(ex.lastCheck).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '아직 없음';
     return `<div class="card set"><h3>신곡 · 새 앨범 자동 추가</h3><p>앱을 열 때마다(6시간에 한 번) Apple Music과 MusicBrainz의 공개 정보를 확인해서, ${UPD_CFG.since.replace(/-/g,'.')} 이후 새로 나온 곡과 앨범을 목록에 넣습니다. 새 곡은 NEW 표시와 함께 들어오고, 한국어 제목은 자동 번역(MyMemory)으로 먼저 붙고 '자동 번역' 표시가 달려요. 마음에 안 들면 곡 정보에서 고치면 됩니다.</p>
       <div class="upd-row"><button class="btn pri" data-act="chkupd">${ic('rep')} 지금 확인</button>
@@ -1570,7 +1610,7 @@ async function loadAndPlay(startAt=0, autoplay=true){
   audio.use(localEng);
   if (NATIVE){
     if (!state.hasAudio.has(id)){ if (autoplay) toast(`「${SONGS[id].kr}」 음원이 없어요 — 설정에서 가져오기`); updateBar(); return false; }
-    const items = state.queue.map(x => { const s = SONGS[x], a = ALB[s.album]; return { id:x, title:s.kr, artist:'ヨルシカ · ' + s.jp, album:a.kr + ' · ' + a.jp, art: a.extra ? '' : a.id }; });
+    const items = state.queue.map(x => { const s = SONGS[x], a = ALB[s.album]; return { id:x, title:s.kr, artist:'ヨルシカ · ' + s.jp, album:a.kr + ' · ' + a.jp, art: a.extra ? '' : a.id, artUrl: coverOf(a.id, 600) }; });
     try{ YoruNative.setQueue(JSON.stringify(items), state.qi, Math.round(startAt*1000), !!autoplay); YoruNative.setRepeat(state.repeat); }catch(e){ toast('플레이어를 시작하지 못했어요'); return false; }
     loadedId = id; localEng._t = startAt; localEng._at = performance.now(); localEng._p = !autoplay; nativeLastId = id;
     if (autoplay){ state.recent = [id, ...state.recent.filter(x=>x!==id)].slice(0,30); LS.set('recent', state.recent); }
@@ -1695,7 +1735,7 @@ function updateBar(){
   markPlaying();
 }
 function markPlaying(){ document.querySelectorAll('.tr').forEach(r=>{ const on = r.dataset.id===cur(); r.classList.toggle('playing', on); const n=r.querySelector('.n'); if(on && !r.dataset.ctx.startsWith('pl:') && !['favs','search','search-rec'].includes(r.dataset.ctx)){ n.innerHTML = `<span class="eq ${audio.paused?'paused':''}"><i></i><i></i><i></i></span>`; r.classList.toggle('paused', audio.paused);} }); }
-function artURL(aid){ return ALB[aid]?.extra ? 'icon-512.png' : `art/${aid}.png`; }
+function artURL(aid){ return coverOf(aid, 512) || (ALB[aid]?.extra ? 'icon-512.png' : `art/${aid}.png`); }
 function mediaSession(){
   if (!('mediaSession' in navigator)) return; const s = SONGS[cur()]; if(!s) return; const a = ALB[s.album];
   try{ navigator.mediaSession.metadata = new MediaMetadata({ title: s.kr, artist: `ヨルシカ · ${s.jp}`, album: `${a.kr} · ${a.jp}`,
@@ -1941,6 +1981,7 @@ document.addEventListener('click', e => {
     if (a==='rep'){ state.repeat = {off:'all',all:'one',one:'off'}[state.repeat]; LS.set('repeat',state.repeat); if (NATIVE){ try{ YoruNative.setRepeat(state.repeat); YoruNative.extSetRepeat(state.repeat); }catch(e){} } toast({off:'반복 끔',all:'전체 반복',one:'한 곡 반복'}[state.repeat]); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
     if (a==='closenp') return closeNP();
     if (a==='ytnp') return openNP();
+    if (a==='covers') return fetchCovers(true);
     if (a==='extperm'){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('목록에서 「요루시카 서재」를 켜고 돌아와 주세요'); return; }
     if (a==='extapp'){ LS.set('extApp', act.dataset.pkg); if (state.mode==='ext'){ try{ YoruNative.extStopQueue(); }catch(e){} } toast(`${extName()}(으)로 연동해요`); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
     if (a==='extopen'){ try{ YoruNative.extOpenApp(extPkg()); }catch(e){} return; }
@@ -1989,6 +2030,7 @@ document.addEventListener('click', e => {
     if (a==='theme'){ setTheme(document.documentElement.dataset.mode==='night'?'day':'night'); return; }
   }
   const tp = t.closest('[data-theme-set]'); if (tp){ setTheme(tp.dataset.themeSet); render(); return; }
+  const cvb = t.closest('[data-cover]'); if (cvb){ LS.set('coverMode', cvb.dataset.cover); if (cvb.dataset.cover==='official') maybeCovers(); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; updateBar(); return; }
   const sp = t.closest('[data-srcpref]'); if (sp){ LS.set('srcPref', sp.dataset.srcpref); if (sp.dataset.srcpref==='ext' && NATIVE && !extInfo.access){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('알림 접근 권한을 켜면 연동이 시작돼요'); } const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
   const np = t.closest('[data-np]'); if (np){ state.npTab = np.dataset.np; renderNP(); if (innerWidth<=820) $('.rgt2')?.scrollIntoView({block:'start'}); return; }
   const lm = t.closest('[data-lm]'); if (lm){ state.lyrMode = lm.dataset.lm; LS.set('lyrMode', state.lyrMode); renderNP(); return; }
@@ -2065,7 +2107,7 @@ window.yoruBack = () => {
   const v = $('#vol'); v.value = state.vol; v.style.setProperty('--p',(state.vol*100)+'%');
   await refreshAudio(); setupMediaKeys(); await restoreSession(); updateBar(); render(); booted = true;
   if (!NATIVE && 'serviceWorker' in navigator && location.protocol==='https:' && !/claude|anthropic/.test(location.host)){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }
-  setTimeout(maybeCheck, 2500); setTimeout(checkApk, 5000);
+  setTimeout(maybeCheck, 2500); setTimeout(checkApk, 5000); setTimeout(maybeCovers, 1200);
   try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
 })();
 </script>

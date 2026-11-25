@@ -323,6 +323,10 @@ public class MainActivity extends Activity {
             Store.saveQueue(MainActivity.this, json, index, posMs);
             final List<MediaItem> items = Store.items(json);
             if (items.isEmpty()) return;
+            try {   // 공식 커버를 미리 받아 둔다(잠금화면·알림용)
+                JSONArray ca = new JSONArray(json);
+                for (int i = 0; i < ca.length(); i++) Store.cover(MainActivity.this, ca.getJSONObject(i).optString("artUrl", ""));
+            } catch (Exception ignored) { }
             final int start = Math.max(0, Math.min(index, items.size() - 1));
             onCtl(() -> {
                 ctl.setMediaItems(items, start, Math.max(0, posMs));

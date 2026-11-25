@@ -24,6 +24,10 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -85,6 +89,60 @@ final class Store {
         return b;
     }
 
+    /** 공식 커버(Apple Music 카탈로그 이미지): 한 번 받아 두면 앱 저장소에서 바로 읽는다. 아직 없으면 받아 두고 null */
+    static byte[] cover(Context c, String url) {
+        if (url == null || !url.startsWith("https://")) return null;
+        synchronized (ART) {
+            if (ART.containsKey(url)) return ART.get(url);
+        }
+        File f = coverFile(c, url);
+        if (f.exists() && f.length() > 0) {
+            try (InputStream in = new FileInputStream(f)) {
+                byte[] b = readAll(in);
+                synchronized (ART) { ART.put(url, b); }
+                return b;
+            } catch (Exception ignored) { }
+        }
+        fetchCover(c, url);
+        return null;
+    }
+
+    static File coverFile(Context c, String url) {
+        File d = new File(c.getFilesDir(), "covers");
+        if (!d.exists()) d.mkdirs();
+        return new File(d, Integer.toHexString(url.hashCode()) + ".jpg");
+    }
+
+    private static final java.util.Set<String> FETCHING = new java.util.HashSet<>();
+
+    static void fetchCover(Context c, String url) {
+        final Context app = c.getApplicationContext();
+        synchronized (FETCHING) {
+            if (!FETCHING.add(url)) return;
+        }
+        new Thread(() -> {
+            File f = coverFile(app, url), tmp = new File(f.getPath() + ".part");
+            try {
+                HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
+                h.setConnectTimeout(10000);
+                h.setReadTimeout(15000);
+                if (h.getResponseCode() == 200) {
+                    try (InputStream in = h.getInputStream(); FileOutputStream o = new FileOutputStream(tmp)) {
+                        byte[] buf = new byte[16384];
+                        int n;
+                        while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+                    }
+                    if (tmp.length() > 0) tmp.renameTo(f);
+                }
+                h.disconnect();
+            } catch (Exception ignored) {
+                tmp.delete();
+            } finally {
+                synchronized (FETCHING) { FETCHING.remove(url); }
+            }
+        }).start();
+    }
+
     // ---------- 대기열 ----------
     static List<MediaItem> items(String json) {
         List<MediaItem> list = new ArrayList<>();
@@ -94,6 +152,7 @@ final class Store {
                 JSONObject o = a.getJSONObject(i);
                 Bundle extras = new Bundle();
                 extras.putString("art", o.optString("art", ""));
+                extras.putString("artUrl", o.optString("artUrl", ""));
                 MediaMetadata md = new MediaMetadata.Builder()
                         .setTitle(o.optString("title"))
                         .setArtist(o.optString("artist"))
@@ -114,8 +173,10 @@ final class Store {
     static MediaItem resolve(Context c, MediaItem m) {
         MediaMetadata md = m.mediaMetadata;
         String key = md.extras != null ? md.extras.getString("art") : null;
+        String url = md.extras != null ? md.extras.getString("artUrl") : null;
         MediaMetadata.Builder mb = md.buildUpon();
-        byte[] a = art(c, key);
+        byte[] a = cover(c, url);
+        if (a == null) a = art(c, key);
         if (a != null) mb.setArtworkData(a, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
         return m.buildUpon()
                 .setUri(Uri.fromFile(file(c, m.mediaId)))
