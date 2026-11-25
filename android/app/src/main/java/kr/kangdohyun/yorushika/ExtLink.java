@@ -6,6 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.pm.ServiceInfo;
+import android.media.browse.MediaBrowser;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
@@ -262,13 +265,14 @@ public class ExtLink extends NotificationListenerService {
     /** i번째 곡 재생 요청. 반환: session(앱 안에서 바로) / intent(앱을 열어 재생) / search(검색 화면) / noapp */
     static String play(Context cx, int i) { return play(cx, i, false); }
 
-    /** force: 세션 명령이 무시됐을 때 — 앱을 직접 열어 검색 재생을 요청 */
-    static String play(Context cx, int i, boolean force) {
+    /** retry: 한 번 더 요청하는 것(같은 순서로). 화면을 띄우지 않는 길부터 쓴다:
+        ① 연동 앱의 미디어 세션 → ② 미디어 브라우저 서비스에 붙어 세션을 받음(앱 화면 없이 깨움) → ③ 앱을 열고, 재생이 시작되면 이 앱으로 돌아옴 */
+    static String play(Context cx, int i, boolean retry) {
         Item it;
         synchronized (L) {
             if (i < 0 || i >= queue.size()) return "none";
             qi = i; reqAt = System.currentTimeMillis(); confirmed = false; failCounted = false; earlyFired = false; qActive = true; gaveUp = false;
-            retried = force;
+            retried = retry;
             it = queue.get(i);
         }
         MediaController c = ctl;
@@ -277,31 +281,95 @@ public class ExtLink extends NotificationListenerService {
             if (s != null) s.pick(null);
             c = ctl;
         }
-        if (!force && c != null && target.equals(c.getPackageName())) {
+        if (c != null && target.equals(c.getPackageName())) {
             try { c.getTransportControls().playFromSearch(it.q, extras(it)); return "session"; } catch (Exception ignored) { }
         }
         PackageManager pm = cx.getPackageManager();
         try { pm.getApplicationInfo(target, 0); } catch (Exception e) { return "noapp"; }
+        final Context app = cx.getApplicationContext();
+        viaBrowser(app, it, () -> launch(app, it));
+        return "browser";
+    }
+
+    static MediaBrowser browser;
+    static final Handler MH = new Handler(Looper.getMainLooper());
+
+    static void viaBrowser(Context cx, Item it, Runnable fallback) {
+        MH.post(() -> {
+            final boolean[] done = { false };
+            try {
+                Intent q = new Intent("android.media.browse.MediaBrowserService");
+                q.setPackage(target);
+                List<ResolveInfo> rs = cx.getPackageManager().queryIntentServices(q, 0);
+                if (rs == null || rs.isEmpty()) { fallback.run(); return; }
+                ServiceInfo si = rs.get(0).serviceInfo;
+                if (browser != null) try { browser.disconnect(); } catch (Exception ignored) { }
+                final MediaBrowser[] ref = new MediaBrowser[1];
+                ref[0] = new MediaBrowser(cx, new ComponentName(si.packageName, si.name), new MediaBrowser.ConnectionCallback() {
+                    @Override public void onConnected() {
+                        if (done[0]) return;
+                        done[0] = true;
+                        try {
+                            MediaController mc = new MediaController(cx, ref[0].getSessionToken());
+                            mc.getTransportControls().playFromSearch(it.q, extras(it));
+                            MH.postDelayed(() -> { ExtLink s = inst; if (s != null) s.pick(null); }, 1200);
+                        } catch (Exception e) { fallback.run(); }
+                    }
+                    @Override public void onConnectionFailed() { if (!done[0]) { done[0] = true; fallback.run(); } }
+                    @Override public void onConnectionSuspended() { }
+                }, null);
+                browser = ref[0];
+                browser.connect();
+                MH.postDelayed(() -> { if (!done[0]) { done[0] = true; fallback.run(); } }, 4000);
+            } catch (Exception e) {
+                if (!done[0]) { done[0] = true; fallback.run(); }
+            }
+        });
+    }
+
+    /** 마지막 방법: 연동 앱을 열어 재생 요청 → 재생이 시작되면 이 앱 화면으로 되돌아온다 */
+    static void launch(Context cx, Item it) {
+        PackageManager pm = cx.getPackageManager();
         Intent in = new Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH);
         in.setPackage(target);
         in.putExtras(extras(it));
         in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
-            if (in.resolveActivity(pm) != null) { cx.startActivity(in); return "intent"; }
+            if (in.resolveActivity(pm) != null) { cx.startActivity(in); bringBack(cx); return; }
         } catch (Exception ignored) { }
         try {
             Intent v;
             if ("com.spotify.music".equals(target)) v = new Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:" + Uri.encode(it.q)));
             else if ("com.google.android.apps.youtube.music".equals(target)) v = new Intent(Intent.ACTION_VIEW, Uri.parse("https://music.youtube.com/search?q=" + Uri.encode(it.q)));
             else v = pm.getLaunchIntentForPackage(target);
-            if (v == null) return "noapp";
+            if (v == null) return;
             v.setPackage(target);
             v.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             cx.startActivity(v);
-            return "search";
-        } catch (Exception e) {
-            return "noapp";
-        }
+        } catch (Exception ignored) { }
+    }
+
+    static void bringBack(Context cx) {
+        final long t0 = System.currentTimeMillis();
+        MH.postDelayed(new Runnable() {
+            @Override public void run() {
+                MediaController c = ctl;
+                boolean ok = false;
+                if (c != null && target.equals(c.getPackageName())) {
+                    PlaybackState ps = c.getPlaybackState();
+                    ok = ps != null && ps.getState() == PlaybackState.STATE_PLAYING;
+                }
+                if (ok) {
+                    try {
+                        Intent i = new Intent(cx, MainActivity.class);
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        cx.startActivity(i);
+                    } catch (Exception ignored) { }
+                    return;
+                }
+                if (System.currentTimeMillis() - t0 < 10000) MH.postDelayed(this, 400);
+            }
+        }, 900);
     }
 
     // ----- 웹앱 브리지에서 부르는 정적 함수 -----

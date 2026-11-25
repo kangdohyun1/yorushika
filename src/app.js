@@ -857,7 +857,8 @@ function ytOf(id){
   const L = YT_LIST[s.album]; if (L){ const i = L.order ? L.order.indexOf(s.jp) : s.no - 1; if (i >= 0) return { list:L.list, index:i, kind:'list' }; }
   return null;
 }
-const playable = id => state.hasAudio.has(id) || (extOn() && streamable(id)) || !!ytOf(id);
+const liveAlt = id => { const s = SONGS[id]; return s && s.live && !ytOf(id) && !state.hasAudio.has(id) && s.orig && SONGS[s.orig] ? s.orig : null; };
+const playable = id => state.hasAudio.has(id) || (extOn() && streamable(id)) || !!ytOf(id) || (!!liveAlt(id) && playable(liveAlt(id)));
 const ytLabel = y => !y ? '없음' : ({ user:'직접 연결한 영상 ✓', mv:'공식 영상·음원 ✓', live:'공식 라이브 영상 ✓', 'user-seg':'직접 맞춘 공연 영상 구간 ✓', find:'공연 영상에서 구간 찾는 중',
   seg: y.est ? '공식 공연 영상 · 구간 추정(맞추기 가능)' : '공식 공연 영상 구간 ✓', pair2:`공식 라이브 영상 ✓ · 「${y.after}」부터 이어서 나와요` })[y.kind] || `공식 앨범 재생목록 ${y.index+1}번째 ✓`;
 const fmtR = t => { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t/3600), m = Math.floor(t%3600/60), x = t%60; return (h ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(x).padStart(2,'0'); };
@@ -898,10 +899,10 @@ async function loadAndPlay(startAt=0, autoplay=true){
     if (autoplay){ extEng._t = 0; extEng._at = performance.now(); extEng._d = NaN; extEng._p = false; extEng.dispatchEvent(new Event('play'));
       state.recent = [id, ...state.recent.filter(x=>x!==id)].slice(0,30); LS.set('recent', state.recent);
       const S = SONGS[id];
-      toast({ session:`「${S.kr}」 — ${extName()}에서 재생해요`, intent:`${extName()}을(를) 열어 재생해요 — 돌아오면 가사가 따라가요`, search:`${extName()} 검색 화면을 열었어요 — 「${S.jp}」를 눌러 주세요`,
+      toast({ session:`「${S.kr}」 — ${extName()}에서 재생해요`, browser:`「${S.kr}」 — ${extName()}에서 재생해요`, intent:`${extName()}을(를) 열어 재생해요 — 돌아오면 가사가 따라가요`, search:`${extName()} 검색 화면을 열었어요 — 「${S.jp}」를 눌러 주세요`,
         noapp:`${extName()}이(가) 설치돼 있지 않아요 — 설정에서 연동 앱을 바꿔 주세요`, noaccess:'알림 접근 권한이 꺼져 있어요 — 설정 → 스트리밍 앱 연동', error:'연동 앱에 재생을 요청하지 못했어요' }[r] || `${extName()}에서 재생해요`); }
     updateBar(); saveSession(); if (autoplay && $('#np').classList.contains('open')) { npSong = id; renderNP(); }
-    return r === 'session' || r === 'intent' || r === 'ok';
+    return r === 'session' || r === 'browser' || r === 'intent' || r === 'ok';
   }
   if (state.mode === 'yt' && !ytTemp && !extOffQueue && extOn() && streamable(id)){         // 예전 YouTube 대기열을 이어 들을 때도 연동 앱으로
     const q = state.queue.filter(streamable); state.queue = q; state.qi = Math.max(0, q.indexOf(id)); state.mode = 'ext'; return loadAndPlay(startAt, autoplay);
@@ -1015,6 +1016,10 @@ const engReady = () => audio.eng === ytEng ? !!ytEng.cur : audio.eng === extEng 
 function resume(){ if (cur() && loadedId===cur() && engReady()) return audio.play().catch(()=>{}); if (cur()) return loadAndPlay(); toggle(); }
 /* 재생 방식은 대기열 단위로 정한다 — 누른 곡에 음원 파일이 있으면 로컬, 없으면 YouTube 공식 영상 */
 function playQueue(ids, start=0, shuf=false){
+  /* 라이브 영상이 없는 라이브 곡은 원곡으로 바꿔 넣는다 */
+  let swapped = 0;
+  const mapped = ids.map(x => { const a = liveAlt(x); if (a){ swapped++; return a; } return x; });
+  if (swapped){ const f = mapped[start] ?? mapped[0]; ids = mapped.filter((x,i) => i === 0 || x !== mapped[i-1]); start = Math.max(0, ids.indexOf(f)); setTimeout(() => toast(`공식 라이브 영상이 없는 ${swapped}곡은 원곡으로 들려줘요`), 1800); }
   const f0 = ids[start] ?? ids[0];
   const mode = state.hasAudio.has(f0) ? 'local' : (extOn() && streamable(f0)) ? 'ext' : ytOf(f0) ? 'yt' : ids.some(x=>state.hasAudio.has(x)) ? 'local' : extOn() && ids.some(streamable) ? 'ext' : 'yt';
   const ok = mode === 'local' ? (x => state.hasAudio.has(x)) : mode === 'ext' ? streamable : (x => !!ytOf(x));
