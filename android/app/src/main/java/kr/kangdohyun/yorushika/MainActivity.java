@@ -402,6 +402,20 @@ public class MainActivity extends Activity {
                     || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
         }
 
+        // ----- 스트리밍 앱 연동 (ExtLink) -----
+        @JavascriptInterface public String extState() { return ExtLink.state(MainActivity.this); }
+        @JavascriptInterface public boolean extAccess() { return ExtLink.access(MainActivity.this); }
+        @JavascriptInterface public void extOpenAccess() { ExtLink.openAccess(MainActivity.this); }
+        @JavascriptInterface public String extApps() { return ExtLink.apps(MainActivity.this); }
+        @JavascriptInterface public void extOpenApp(String pkg) { ExtLink.openApp(MainActivity.this, pkg); }
+        @JavascriptInterface
+        public String extSetQueue(String json, int index, String rep, String pkg, boolean play) {
+            return ExtLink.setQueue(MainActivity.this, json, index, rep, pkg, play);
+        }
+        @JavascriptInterface public void extStopQueue() { ExtLink.stopQueue(); }
+        @JavascriptInterface public void extSetRepeat(String r) { ExtLink.setRepeat(r); }
+        @JavascriptInterface public void extControl(String a, long ms) { ExtLink.control(a, ms); }
+
         @JavascriptInterface
         public void setReleaseState(String since, String seenJson) {
             Store.prefs(MainActivity.this).edit().putString("since", since).putString("seen", seenJson).apply();

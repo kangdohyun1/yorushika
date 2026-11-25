@@ -200,7 +200,7 @@ function trackRow(id, i, ctx){
   const s = SONGS[id]; const fav = state.favs.has(id); const a = ALB[s.album];
   return `<div class="tr" data-id="${id}" data-ctx="${esc(ctx)}" data-i="${i}">
     <div class="n">${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search' ? `<div class="art" style="width:34px;height:34px;border-radius:5px;overflow:hidden">${art(s.album)}</div>` : s.no}</div>
-    <div><div class="k">${esc(s.kr)}${state.hasAudio.has(id)?'<span class="dot" title="음원 있음"></span>':ytOf(id)?'<span class="dot yt" title="YouTube 공식 영상으로 재생"></span>':''}${s.inst?' <span class="chip">연주곡</span>':''}${s.isNew?' <span class="chip new">NEW</span>':''}${s.untr?' <span class="chip">번역 전</span>':''}${s.auto?' <span class="chip">자동 번역</span>':''}</div>
+    <div><div class="k">${esc(s.kr)}${state.hasAudio.has(id)?'<span class="dot" title="음원 있음"></span>':(extOn() && streamable(id))?`<span class="dot yt" title="${esc(extName())}에서 재생"></span>`:ytOf(id)?'<span class="dot yt" title="YouTube 공식 영상으로 재생"></span>':''}${s.inst?' <span class="chip">연주곡</span>':''}${s.isNew?' <span class="chip new">NEW</span>':''}${s.untr?' <span class="chip">번역 전</span>':''}${s.auto?' <span class="chip">자동 번역</span>':''}</div>
       <div class="jj">${esc(s.jp)}${ctx.startsWith('pl:')||ctx==='favs'||ctx==='search' ? ' · '+esc(a.kr):''}</div></div>
     <div class="m">${ctx.startsWith('pl:') ? `<button class="ibtn" data-act="mvup" title="위로">${ic('up')}</button><button class="ibtn" data-act="mvdn" title="아래로">${ic('down')}</button><button class="ibtn" data-act="rm" title="빼기">${ic('x')}</button>` : ''}
       <button class="ibtn ${fav?'on':''}" data-act="fav" title="좋아요">${ic(fav?'heartF':'heart')}</button>
@@ -319,6 +319,18 @@ function vSettings(){
     return `<div class="card set"><h3>YouTube 공식 영상으로 듣기</h3><p>음원 파일이 없는 곡은 요루시카 공식 YouTube 채널의 영상으로 재생돼요. 재생 화면을 열면 앨범 아트 자리에 영상이 나오고, 닫으면 오른쪽 아래 작은 창에서 이어집니다. MV가 없는 수록곡은 레이블이 올린 공식 음원(Provided to YouTube)이나 공식 앨범 재생목록으로 채웠어요.</p>
     <div class="upd-row"><span class="chip">공식 영상·음원 ${c('mv')}곡</span><span class="chip">앨범 재생목록 ${c('list')}곡</span><span class="chip">직접 연결 ${c('user')}곡</span><span class="chip">연결 없음 ${c('')}곡</span><span class="chip">라이브 ${ORDER.filter(x=>SONGS[x].live && ytOf(x)).length}곡</span><button class="btn sm" data-act="ytside">작은 창 위치 바꾸기</button></div>
     <p class="tiny" style="margin:12px 0 0">· 화면을 끄거나 앱을 나가면 멈춰요. YouTube 정책상 백그라운드 재생이 안 되고, 잠금화면·버즈 조작도 음원 파일로 들을 때만 돼요.<br>· 영상이 없는 곡은 곡 정보 → 'YouTube 링크 직접 연결'에 주소를 붙여 넣으면 돼요. 공연 전체 영상이 있는 라이브는 '공연 전체 영상에서 이 곡 찾기'로 구간을 맞출 수 있어요.<br>· claude.ai 미리보기 화면에서는 YouTube가 막혀 있어요. 설치한 앱이나 웹 주소에서 열면 동작합니다.</p></div>`; })()}
+  ${(()=>{ if (!NATIVE) return `<div class="card set"><h3>스트리밍 앱 연동</h3><p>Spotify·YouTube Music으로 재생하고, 그 앱에서 듣는 곡의 가사·이야기를 이 앱에서 따라 보여 주는 기능이에요. 다른 앱의 재생 정보를 읽어야 해서 안드로이드 앱(APK)에서만 쓸 수 있어요.</p></div>`;
+    let apps = []; try{ apps = JSON.parse(YoruNative.extApps()); }catch(e){}
+    const acc = !!extInfo.access, pref = LS.get('srcPref','yt'), fol = LS.get('extFollow', true), cur0 = extPkg();
+    return `<div class="card set" id="extCard"><h3>스트리밍 앱 연동</h3><p>음원 파일이 없는 곡을 Spotify·YouTube Music 같은 앱으로 재생하고, 그 앱에서 듣는 요루시카 곡의 가사와 이야기를 여기서 따라 보여 줘요. 소리는 그 앱이 내기 때문에 화면을 꺼도, 앱을 나가도 계속 재생되고 잠금화면·버즈 조작도 그 앱 그대로 돼요.</p>
+    <div class="upd-row">${acc ? '<span class="chip">알림 접근 허용됨 ✓</span>' : `<button class="btn pri" data-act="extperm">${ic('clock')} 알림 접근 권한 켜기</button>`}
+      ${apps.length ? apps.map(a=>`<button class="btn sm ${a.pkg===cur0?'pri':''}" data-act="extapp" data-pkg="${esc(a.pkg)}">${esc(a.label)}${a.pkg===cur0?' ✓':''}</button>`).join('') : '<span class="tiny">Spotify나 YouTube Music이 설치돼 있지 않아요</span>'}
+      ${apps.some(a=>a.pkg===cur0) ? `<button class="btn sm" data-act="extopen">${ic('link')} ${esc(extName())} 열기</button>` : ''}</div>
+    <div class="tiny" style="margin:14px 0 6px">음원 파일이 없는 곡은</div>
+    <div class="seg">${[['ext','연동 앱으로 재생'],['yt','YouTube 공식 영상으로']].map(([k,l])=>`<button data-srcpref="${k}" class="${pref===k?'on':''}">${l}</button>`).join('')}</div>
+    <div class="upd-row" style="margin-top:12px"><button class="btn sm" data-act="extfollow">${fol?'✓ ':''}연동 앱에서 듣는 요루시카 곡 따라가기 ${fol?'켬':'끔'}</button></div>
+    ${acc && extInfo.title ? `<div class="tiny" style="margin-top:10px">지금 ${esc(extInfo.app||'')}: ${esc(extInfo.title)}${extInfo.artist?' · '+esc(extInfo.artist):''}${extMatch(extInfo.title, extInfo.artist, extInfo.album)?' — 이 앱의 곡과 연결됨 ✓':''}</div>` : ''}
+    <p class="tiny" style="margin:12px 0 0">· 알림 접근 권한은 '지금 재생 중인 곡'을 읽고 재생 명령을 보내는 데만 써요. 알림 내용은 읽거나 저장하지 않아요.<br>· Spotify 무료는 곡을 골라 듣는 시간이 하루 단위로 제한되고 광고가 나와요. YouTube Music은 Premium이어야 백그라운드 재생이 돼요.<br>· 라이브 영상 작품과 幻燈 화집 전용곡은 스트리밍 음원이 없어 YouTube 공식 영상으로 재생해요.<br>· 연동 앱이 꺼져 있으면 첫 곡은 그 앱이 열리면서 시작될 수 있어요. 그다음부터는 이 앱에서 누르는 대로 바로 바뀌어요.</p></div>`; })()}
   <div class="card set"><h3>음원 가져오기</h3><p>갖고 있는 음원 파일(mp3, m4a, flac 등)을 고르면 파일 이름으로 곡을 자동 연결합니다. 파일은 이 기기 안에만 저장됩니다. 연결 안 된 파일은 곡 화면의 '음원 연결'로 직접 지정할 수 있어요.</p>
     <label class="btn pri">${ic('music')} 파일 고르기<input type="file" id="audIn" accept="audio/*" multiple hidden></label> <span class="tiny">현재 ${nAud}곡 연결됨</span><div class="prog" id="audProg" style="display:none"><i></i></div><div id="audRes" class="tiny" style="margin-top:8px">${lastImport}</div></div>
   <div class="card set"><h3>가사</h3><p>가사는 곡 화면 → '가사 편집'에서 일본어 원문과 한국어 번역을 붙여 넣어 저장합니다. 줄 단위로 짝지어 보여 줍니다. 현재 ${nLy}곡 저장됨.</p>
@@ -429,7 +441,7 @@ function npBody(s){
     <p class="tiny" style="margin-top:14px">LRC는 <code>[01:23.45]가사</code> 형식의 시간 붙은 가사입니다. 붙여 넣으면 일본어 원문과 싱크 시간이 한 번에 들어갑니다.</p>`;
   if (tab==='info'){
     const a = ALB[s.album]; const q = encodeURIComponent('ヨルシカ '+baseTitle(s.jp)); const sc = scenesOf(s.id);
-    return `<div class="info"><dl><dt>한국어</dt><dd class="kr">${esc(s.kr)} <button class="btn sm" data-act="rensong" data-id="${s.id}">${ic('edit')} 고치기</button> <button class="btn sm" data-act="mtone" data-id="${s.id}">자동 번역</button></dd><dt>일본어</dt><dd class="jp">${esc(s.jp)}</dd><dt>앨범</dt><dd>${esc(a.kr)} <span class="jp muted">${esc(a.jp)}</span></dd><dt>트랙</dt><dd>${s.no} / ${a.tracks.length}${s.inst?' · 연주곡':''}</dd><dt>발매</dt><dd>${a.date}</dd><dt>음원</dt><dd>${state.hasAudio.has(s.id)?'연결됨 ✓':'없음'}</dd><dt>YouTube</dt><dd>${ytLabel(ytOf(s.id))}${segBox(s)}${!ytOf(s.id) && !s.live && YT_NOTE[s.album] ? `<div class="tiny">${YT_NOTE[s.album]}</div>` : ''}${cur()===s.id && audio.eng===ytEng ? `<div class="tiny" id="ytNow">${esc(ytEng.title)}</div>` : ''}</dd><dt>가사 싱크</dt><dd>${hasSync(s.id)?`있음 ✓ (${times.filter(t=>t!=null).length}줄)`:'없음'}</dd></dl>
+    return `<div class="info"><dl><dt>한국어</dt><dd class="kr">${esc(s.kr)} <button class="btn sm" data-act="rensong" data-id="${s.id}">${ic('edit')} 고치기</button> <button class="btn sm" data-act="mtone" data-id="${s.id}">자동 번역</button></dd><dt>일본어</dt><dd class="jp">${esc(s.jp)}</dd><dt>앨범</dt><dd>${esc(a.kr)} <span class="jp muted">${esc(a.jp)}</span></dd><dt>트랙</dt><dd>${s.no} / ${a.tracks.length}${s.inst?' · 연주곡':''}</dd><dt>발매</dt><dd>${a.date}</dd><dt>음원</dt><dd>${state.hasAudio.has(s.id)?'연결됨 ✓':'없음'}</dd>${NATIVE ? `<dt>연동 앱</dt><dd>${streamable(s.id) ? (extOn() ? `${esc(extName())}에서 재생 ✓` : '꺼짐 — 설정 → 스트리밍 앱 연동') : '스트리밍 음원 없음'}${cur()===s.id && audio.eng===extEng && extInfo.title ? `<div class="tiny">지금 ${esc(EXT_APPS[extInfo.pkg]||'')}: ${esc(extInfo.title)}${extInfo.artist?' · '+esc(extInfo.artist):''}</div>` : ''}</dd>` : ''}<dt>YouTube</dt><dd>${ytLabel(ytOf(s.id))}${segBox(s)}${!ytOf(s.id) && !s.live && YT_NOTE[s.album] ? `<div class="tiny">${YT_NOTE[s.album]}</div>` : ''}${cur()===s.id && audio.eng===ytEng ? `<div class="tiny" id="ytNow">${esc(ytEng.title)}</div>` : ''}</dd><dt>가사 싱크</dt><dd>${hasSync(s.id)?`있음 ✓ (${times.filter(t=>t!=null).length}줄)`:'없음'}</dd></dl>
       ${noteOf(s)?`<div class="note">${esc(noteOf(s))}</div>`:''}
       ${(()=>{ const vs = versionsOf(s.id); return vs.length ? `<div class="scn"><div class="tiny" style="margin-bottom:8px">이 곡의 다른 버전</div>${vs.map(x=>`<button class="scn-l" data-chip="${x}"><span class="jp">${SONGS[x].live?'LIVE':SONGS[x].rr?'再':'原'}</span>${esc(ALB[SONGS[x].album].kr)} · ${ALB[SONGS[x].album].date}${state.hasAudio.has(x)?' ▶':''}</button>`).join('')}</div>` : ''; })()}
       ${sc.length?`<div class="scn"><div class="tiny" style="margin-bottom:8px">이 곡이 나오는 이야기</div>${sc.map(x=>`<button class="scn-l" data-go="#/read/${x.arc}#sc-${x.arc}-${x.i}"><span class="jp">${'一二三四五六七八九十'[x.i]||x.i+1}</span>${esc(STORY.arcs.find(a=>a.id===x.arc).title)} · ${esc(x.t)} →</button>`).join('')}</div>`:''}
@@ -641,19 +653,49 @@ class YTEngine extends EventTarget {
   stop(){ try{ this.p && this.p.stopVideo(); }catch(e){} clearTimeout(this._timer); const was = !this._p; this._p = true; this.cur = null; this.title = ''; if (was) this.dispatchEvent(new Event('pause')); }
   url(){ const c = this.cur; if (!c) return 'https://www.youtube.com/@nbuna'; if (this.vid) return 'https://www.youtube.com/watch?v=' + this.vid + (c.list ? '&list=' + c.list : '') + (this.off ? '&t=' + Math.floor(this.off) : ''); return 'https://www.youtube.com/watch?list=' + c.list + '&index=' + (c.index + 1); }
 }
-/* 실제로 소리를 내는 엔진(로컬 음원 / YouTube)을 하나로 묶어 앱 나머지는 audio 하나만 보게 한다 */
+/* 스트리밍 앱 연동 엔진 — 소리는 Spotify·YouTube Music 등이 내고, 여기서는 그 앱의 재생 상태를 비춘다(안드로이드 앱 전용) */
+class ExtEngine extends EventTarget {
+  constructor(){ super(); this._t = 0; this._at = performance.now(); this._d = NaN; this._p = true; }
+  get currentTime(){ const t = this._p ? this._t : this._t + (performance.now() - this._at)/1000; return isFinite(this._d) ? Math.min(t, this._d) : t; }
+  set currentTime(v){ v = Math.max(0, +v || 0); this._t = v; this._at = performance.now(); try{ YoruNative.extControl('seek', Math.round(v*1000)); }catch(e){} this.dispatchEvent(new Event('seeked')); }
+  get duration(){ return this._d; } get paused(){ return this._p; }
+  get volume(){ return 1; } set volume(v){}
+  play(){ this._p = false; this._at = performance.now(); try{ YoruNative.extControl('play', 0); }catch(e){} this.dispatchEvent(new Event('play')); return Promise.resolve(); }
+  pause(){ if (!this._p){ this._t = this.currentTime; this._p = true; this.dispatchEvent(new Event('pause')); } try{ YoruNative.extControl('pause', 0); }catch(e){} }
+}
+/* 실제로 소리를 내는 엔진(로컬 음원 / YouTube / 연동 앱)을 하나로 묶어 앱 나머지는 audio 하나만 보게 한다 */
 class PlayerProxy extends EventTarget {
   constructor(engines){ super(); this.eng = engines[0];
     ['play','pause','ended','timeupdate','seeked','loadedmetadata','error','meta'].forEach(ev => engines.forEach(e => e.addEventListener(ev, () => { if (this.eng === e) this.dispatchEvent(new Event(ev)); }))); }
-  use(e){ if (this.eng === e) return; const old = this.eng; this.eng = e; this.at = Date.now(); if (old === ytEng) old.stop(); else { try{ old.pause(); }catch(_){} } }
+  use(e){ if (this.eng === e) return; const old = this.eng; this.eng = e; this.at = Date.now(); if (old === ytEng) old.stop(); else { if (old === extEng){ try{ YoruNative.extStopQueue(); }catch(_){} } try{ if (!old.paused) old.pause(); }catch(_){} } }
   get currentTime(){ return this.eng.currentTime; } set currentTime(v){ this.eng.currentTime = v; }
   get duration(){ return this.eng.duration; } get paused(){ return this.eng.paused; }
   get volume(){ return this.eng.volume; } set volume(v){ localEng.volume = v; ytEng.volume = v; }
   play(){ return this.eng.play(); } pause(){ return this.eng.pause(); }
 }
 const localEng = NATIVE ? new NativeAudio() : new Audio(); localEng.preload = 'metadata';
-const ytEng = new YTEngine();
-const audio = new PlayerProxy([localEng, ytEng]); audio.volume = state.vol;
+const ytEng = new YTEngine(), extEng = new ExtEngine();
+const audio = new PlayerProxy([localEng, ytEng, extEng]); audio.volume = state.vol;
+/* ---- 스트리밍 앱 연동 설정·판정 ---- */
+const EXT_APPS = { 'com.spotify.music':'Spotify', 'com.google.android.apps.youtube.music':'YouTube Music', 'com.google.android.youtube':'YouTube', 'com.apple.android.music':'Apple Music' };
+let extInfo = { access:false };
+const extPkg = () => LS.get('extApp', 'com.spotify.music');
+const extName = () => EXT_APPS[extPkg()] || '연동 앱';
+const extOn = () => NATIVE && LS.get('srcPref', 'yt') === 'ext' && !!extInfo.access;
+/* 스트리밍에 있는 곡: 라이브 영상 작품과 幻燈 화집 전용곡은 제외 */
+const streamable = id => { const s = SONGS[id]; if (!s || s.live) return false; if (s.album === 'gentou') return YT_LIST.gentou.order.includes(s.jp); return true; };
+const extQuery = id => { const s = SONGS[id]; return baseTitle(s.jp) + (s.rr ? ' Re-Recording' : '') + ' ヨルシカ'; };
+/* 연동 앱이 알려 준 제목·가수·앨범으로 우리 곡 찾기 */
+function extMatch(t, ar, al){
+  if (!t || !/ヨルシカ|yorushika|요루시카|n-buna|suis/i.test((ar||'') + ' ' + (al||'') + ' ' + t)) return null;
+  const k = norm(t); if (!k) return null; const ka = norm(al || ''); const rrT = /re-?record/i.test(t);
+  let best = null, bs = 0;
+  for (const id of ORDER){ const s = SONGS[id]; const j = norm(s.jp); if (!j) continue;
+    if (!(k === j || k.startsWith(j) || (j.length >= 2 && k.includes(j)))) continue;
+    const sc = j.length*10 + (k === j ? 5 : 0) + (s.live ? 0 : 4) + (ka && norm(ALB[s.album].jp) && ka.includes(norm(ALB[s.album].jp)) ? 30 : 0) + (s.rr === rrT ? 6 : 0);
+    if (sc > bs){ bs = sc; best = id; } }
+  return best;
+}
 let ytUser = LS.get('ytLinks', {}), ytSeg = LS.get('ytSeg', {}), ytTemp = null;
 /* 라이브 곡: 직접 맞춘 구간 > 공식 라이브 영상(단독·구간·이어진 영상) */
 function liveSrc(s){
@@ -673,7 +715,7 @@ function ytOf(id){
   const L = YT_LIST[s.album]; if (L){ const i = L.order ? L.order.indexOf(s.jp) : s.no - 1; if (i >= 0) return { list:L.list, index:i, kind:'list' }; }
   return null;
 }
-const playable = id => state.hasAudio.has(id) || !!ytOf(id);
+const playable = id => state.hasAudio.has(id) || (extOn() && streamable(id)) || !!ytOf(id);
 const ytLabel = y => !y ? '없음' : ({ user:'직접 연결한 영상 ✓', mv:'공식 영상·음원 ✓', live:'공식 라이브 영상 ✓', 'user-seg':'직접 맞춘 공연 영상 구간 ✓', find:'공연 영상에서 구간 찾는 중',
   seg: y.est ? '공식 공연 영상 · 구간 추정(맞추기 가능)' : '공식 공연 영상 구간 ✓', pair2:`공식 라이브 영상 ✓ · 「${y.after}」부터 이어서 나와요` })[y.kind] || `공식 앨범 재생목록 ${y.index+1}번째 ✓`;
 const fmtR = t => { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t/3600), m = Math.floor(t%3600/60), x = t%60; return (h ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(x).padStart(2,'0'); };
@@ -705,6 +747,19 @@ let curURL = null;
 const cur = () => state.queue[state.qi];
 async function loadAndPlay(startAt=0, autoplay=true){
   const id = cur(); if (!id) return;
+  if (state.mode === 'ext'){
+    if (!NATIVE) { state.mode = 'yt'; return loadAndPlay(startAt, autoplay); }
+    audio.use(extEng); loadedId = id; if (autoplay) extReqAt = Date.now();
+    const items = state.queue.map(x => ({ id:x, q:extQuery(x), key:norm(SONGS[x].jp), title:baseTitle(SONGS[x].jp) }));
+    let r = 'error'; try{ r = YoruNative.extSetQueue(JSON.stringify(items), state.qi, state.repeat, extPkg(), !!autoplay); }catch(e){}
+    if (autoplay){ extEng._t = 0; extEng._at = performance.now(); extEng._d = NaN; extEng._p = false; extEng.dispatchEvent(new Event('play'));
+      state.recent = [id, ...state.recent.filter(x=>x!==id)].slice(0,30); LS.set('recent', state.recent);
+      const S = SONGS[id];
+      toast({ session:`「${S.kr}」 — ${extName()}에서 재생해요`, intent:`${extName()}을(를) 열어 재생해요 — 돌아오면 가사가 따라가요`, search:`${extName()} 검색 화면을 열었어요 — 「${S.jp}」를 눌러 주세요`,
+        noapp:`${extName()}이(가) 설치돼 있지 않아요 — 설정에서 연동 앱을 바꿔 주세요`, noaccess:'알림 접근 권한이 꺼져 있어요 — 설정 → 스트리밍 앱 연동', error:'연동 앱에 재생을 요청하지 못했어요' }[r] || `${extName()}에서 재생해요`); }
+    updateBar(); saveSession(); if (autoplay && $('#np').classList.contains('open')) { npSong = id; renderNP(); }
+    return r === 'session' || r === 'intent' || r === 'ok';
+  }
   if (state.mode === 'yt'){
     if (ytTemp && ytTemp.id !== id) ytTemp = null;
     const src = ytOf(id);
@@ -743,6 +798,8 @@ async function restoreSession(){
   const ss = LS.get('session', null);
   if (NATIVE){ try{ const st = JSON.parse(YoruNative.getState()); if (st.count > 0 && (st.playing || !ss || ss.mode !== 'yt')){ state.mode = 'local'; state.queue = JSON.parse(YoruNative.getQueue()).filter(id => SONGS[id]); state.qi = Math.max(0, state.queue.indexOf(st.id)); loadedId = cur(); nativeLastId = loadedId; nativePoll(); return; } }catch(e){} }
   if (!ss || !ss.q || !ss.q.length) return;
+  if (ss.mode === 'ext' && NATIVE){ const keep = ss.q[ss.qi]; state.queue = ss.q.filter(id => SONGS[id] && streamable(id)); if (!state.queue.length) return;
+    state.mode = 'ext'; audio.use(extEng); state.qi = Math.max(0, state.queue.indexOf(keep)); loadedId = null; return; }
   if (ss.mode === 'yt'){ const keep = ss.q[ss.qi]; state.queue = ss.q.filter(id => SONGS[id] && ytOf(id)); if (!state.queue.length) return;
     state.mode = 'yt'; audio.use(ytEng); state.qi = Math.max(0, state.queue.indexOf(keep)); state.resumeT = state.queue.indexOf(keep) >= 0 ? (ss.t || 0) : 0; loadedId = null; return; }
   state.queue = ss.q.filter(id => SONGS[id] && state.hasAudio.has(id)); if (!state.queue.length) return;
@@ -765,13 +822,38 @@ function nativePoll(){
   if (wasPaused !== A._p) A.dispatchEvent(new Event(A._p ? 'pause' : 'play'));
 }
 if (NATIVE) setInterval(nativePoll, 250);
-const engReady = () => audio.eng === ytEng ? !!ytEng.cur : (NATIVE || !!localEng.src);
+/* 연동 앱 상태 읽기: 지금 곡·위치를 비추고, 요루시카 곡을 듣고 있으면 따라간다 */
+let extReqAt = 0, extForeign = false;
+function extPoll(){
+  let st; try{ st = JSON.parse(YoruNative.extState()); }catch(e){ return; }
+  const had = !!extInfo.access; extInfo = st || { access:false };
+  if (had !== !!extInfo.access && /^#\/settings/.test(location.hash) && !$('#np').classList.contains('open')){ const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; }
+  if (!st || !st.title) return;
+  const id = extMatch(st.title, st.artist, st.album), E = extEng;
+  if (audio.eng === extEng){
+    if (Date.now() - extReqAt < 5000 && id !== cur()) return;      // 요청한 곡으로 바뀌기 전
+    const wasP = E._p; extForeign = !id;
+    if (!id) return;                                                 // 요루시카가 아닌 곡: 표시는 그대로 둔다
+    E._t = (st.pos||0)/1000; E._at = performance.now(); E._d = st.dur > 0 ? st.dur/1000 : NaN; E._p = !st.playing;
+    if (id !== cur()){ const qi = state.queue.indexOf(id); if (qi >= 0) state.qi = qi; else { state.queue = [id]; state.qi = 0; }
+      const was = loadedId; loadedId = id; state.recent = [id, ...state.recent.filter(x=>x!==id)].slice(0,30); LS.set('recent', state.recent);
+      updateBar(); saveSession(); if ($('#np').classList.contains('open') && npSong === was){ npSong = id; renderNP(); } lastLi = -2; }
+    E.dispatchEvent(new Event('timeupdate'));
+    if (wasP !== E._p){ E.dispatchEvent(new Event(E._p ? 'pause' : 'play')); updateBar(); }
+  } else if (LS.get('extFollow', true) && id && st.playing && audio.paused){
+    state.mode = 'ext'; audio.use(extEng); state.queue = [id]; state.qi = 0; loadedId = id;
+    E._t = (st.pos||0)/1000; E._at = performance.now(); E._d = st.dur > 0 ? st.dur/1000 : NaN; E._p = false;
+    updateBar(); saveSession(); if ($('#np').classList.contains('open')){ npSong = id; renderNP(); }
+  }
+}
+if (NATIVE) setInterval(extPoll, 700);
+const engReady = () => audio.eng === ytEng ? !!ytEng.cur : audio.eng === extEng ? true : (NATIVE || !!localEng.src);
 function resume(){ if (cur() && loadedId===cur() && engReady()) return audio.play().catch(()=>{}); if (cur()) return loadAndPlay(); toggle(); }
 /* 재생 방식은 대기열 단위로 정한다 — 누른 곡에 음원 파일이 있으면 로컬, 없으면 YouTube 공식 영상 */
 function playQueue(ids, start=0, shuf=false){
   const f0 = ids[start] ?? ids[0];
-  const mode = state.hasAudio.has(f0) ? 'local' : ytOf(f0) ? 'yt' : ids.some(x=>state.hasAudio.has(x)) ? 'local' : 'yt';
-  const ok = mode === 'local' ? (x => state.hasAudio.has(x)) : (x => !!ytOf(x));
+  const mode = state.hasAudio.has(f0) ? 'local' : (extOn() && streamable(f0)) ? 'ext' : ytOf(f0) ? 'yt' : ids.some(x=>state.hasAudio.has(x)) ? 'local' : extOn() && ids.some(streamable) ? 'ext' : 'yt';
+  const ok = mode === 'local' ? (x => state.hasAudio.has(x)) : mode === 'ext' ? streamable : (x => !!ytOf(x));
   let q = ids.filter(ok);
   if (!q.length){ toast('재생할 음원도, 연결된 YouTube 영상도 없어요. 곡 정보에서 영상을 직접 연결할 수 있어요.'); return; }
   let first = ok(f0) ? f0 : q[0];
@@ -786,7 +868,7 @@ function playOne(id, ctxIds){
 }
 function next(auto){
   if (!state.queue.length) return;
-  if (NATIVE && loadedId && state.mode!=='yt'){ try{ YoruNative.next(); }catch(e){} return; }
+  if (NATIVE && loadedId && state.mode==='local'){ try{ YoruNative.next(); }catch(e){} return; }
   if (auto && state.repeat==='one'){ if (state.mode==='yt') return loadAndPlay(); audio.currentTime=0; audio.play(); return; }
   /* 두 곡이 이어진 라이브 영상(예: 歩く / 心に穴が空いた)을 끝까지 들었으면 뒷곡은 건너뛴다 */
   const ps = auto && state.mode==='yt' && ytEng.cur && ytEng.cur.pair; const nx = state.queue[state.qi+1];
@@ -796,7 +878,7 @@ function next(auto){
   else { updateBar(); return; }
   loadAndPlay();
 }
-function prev(){ if (NATIVE && loadedId && state.mode!=='yt'){ try{ YoruNative.prev(); }catch(e){} return; } if (audio.currentTime>3){ audio.currentTime=0; return; } if (state.qi>0) state.qi--; loadAndPlay(); }
+function prev(){ if (NATIVE && loadedId && state.mode==='local'){ try{ YoruNative.prev(); }catch(e){} return; } if (audio.currentTime>3){ audio.currentTime=0; return; } if (state.qi>0) state.qi--; loadAndPlay(); }
 function toggle(){ if (cur() && loadedId!==cur()) return loadAndPlay(); if(!cur()) { const f = ORDER.find(id=>state.hasAudio.has(id)) || ORDER.find(id=>ytOf(id)); if(f) playQueue(ORDER.filter(x=>!SONGS[x].live), ORDER.filter(x=>!SONGS[x].live).indexOf(f)); else toast('먼저 설정에서 음원을 가져와 주세요.'); return; } audio.paused ? audio.play() : audio.pause(); }
 audio.addEventListener('ended', ()=>next(true));
 audio.addEventListener('play', ()=>{ updateBar(); startTick(true); }); audio.addEventListener('seeked', ()=>{ lastLi=-2; startTick(true); }); audio.addEventListener('pause', updateBar);
@@ -810,7 +892,7 @@ function syncTime(){
 }
 function updateBar(){
   const id = cur(); const s = SONGS[id];
-  $('#pNow').innerHTML = s ? `<div class="art">${art(s.album)}</div><div class="tx"><div class="k">${esc(s.kr)}</div><div class="j">${audio.eng===ytEng?'<b class="ytm">YouTube</b> ':''}${esc(s.jp)} · ${esc(ALB[s.album].kr)}</div></div>`
+  $('#pNow').innerHTML = s ? `<div class="art">${art(s.album)}</div><div class="tx"><div class="k">${esc(s.kr)}</div><div class="j">${audio.eng===ytEng?'<b class="ytm">YouTube</b> ':audio.eng===extEng?`<b class="ytm">${esc(EXT_APPS[extInfo.pkg]||extName())}</b> `:''}${esc(s.jp)} · ${esc(ALB[s.album].kr)}</div></div>`
     : `<div class="art" style="display:grid;place-items:center;background:var(--line)">${ic('music')}</div><div class="tx"><div class="k">재생 중인 곡 없음</div><div class="j">ヨルシカ</div></div>`;
   $('#pPlay').innerHTML = ic(audio.paused?'play':'pause'); const np = $('#npPlay'); if (np) np.innerHTML = ic(audio.paused?'play':'pause'); const np2 = $('#npPlay2'); if (np2) np2.innerHTML = ic(audio.paused?'play':'pause');
   $('#pShuf').innerHTML = ic('shuf'); $('#pShuf').style.color = state.shuffle?'var(--accent)':''; $('#pRep').style.color = state.repeat!=='off'?'var(--accent)':''; $('#pRep').innerHTML = ic('rep')+(state.repeat==='one'?'<sup style="font-size:9px">1</sup>':'');
@@ -1060,10 +1142,14 @@ document.addEventListener('click', e => {
     if (a==='toggle') return toggle();
     if (a==='next') return next();
     if (a==='prev') return prev();
-    if (a==='shuf'){ state.shuffle=!state.shuffle; LS.set('shuffle',state.shuffle); if(state.shuffle && state.queue.length){ const c=cur(); const rest=state.queue.filter(x=>x!==c).sort(()=>Math.random()-.5); state.queue=[c,...rest]; state.qi=0; } if (NATIVE && loadedId && state.mode!=='yt') loadAndPlay(audio.currentTime, !audio.paused); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
-    if (a==='rep'){ state.repeat = {off:'all',all:'one',one:'off'}[state.repeat]; LS.set('repeat',state.repeat); if (NATIVE){ try{ YoruNative.setRepeat(state.repeat); }catch(e){} } toast({off:'반복 끔',all:'전체 반복',one:'한 곡 반복'}[state.repeat]); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
+    if (a==='shuf'){ state.shuffle=!state.shuffle; LS.set('shuffle',state.shuffle); if(state.shuffle && state.queue.length){ const c=cur(); const rest=state.queue.filter(x=>x!==c).sort(()=>Math.random()-.5); state.queue=[c,...rest]; state.qi=0; } if (NATIVE && loadedId && state.mode==='local') loadAndPlay(audio.currentTime, !audio.paused); if (state.mode==='ext' && loadedId) loadAndPlay(0, false); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
+    if (a==='rep'){ state.repeat = {off:'all',all:'one',one:'off'}[state.repeat]; LS.set('repeat',state.repeat); if (NATIVE){ try{ YoruNative.setRepeat(state.repeat); YoruNative.extSetRepeat(state.repeat); }catch(e){} } toast({off:'반복 끔',all:'전체 반복',one:'한 곡 반복'}[state.repeat]); updateBar(); if($('#np').classList.contains('open')) renderNP(); return; }
     if (a==='closenp') return closeNP();
     if (a==='ytnp') return openNP();
+    if (a==='extperm'){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('목록에서 「요루시카 서재」를 켜고 돌아와 주세요'); return; }
+    if (a==='extapp'){ LS.set('extApp', act.dataset.pkg); if (state.mode==='ext'){ try{ YoruNative.extStopQueue(); }catch(e){} } toast(`${extName()}(으)로 연동해요`); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
+    if (a==='extopen'){ try{ YoruNative.extOpenApp(extPkg()); }catch(e){} return; }
+    if (a==='extfollow'){ LS.set('extFollow', !LS.get('extFollow', true)); const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
     if (a==='ytside'){ LS.set('ytLeft', !LS.get('ytLeft', false)); return positionYT(); }
     if (a==='ytlink') return promptName('YouTube 링크 붙여넣기', ytUser[id] ? 'https://youtu.be/'+ytUser[id] : '', v=>{ const vid = parseYT(v); if (!vid) return toast('영상 주소를 알아보지 못했어요 — youtube.com/watch?v=… 또는 youtu.be/… 형식이에요');
       ytUser[id] = vid; LS.set('ytLinks', ytUser); toast('이 곡에 영상을 연결했어요'); if (cur()===id && state.mode==='yt') loadAndPlay(0, !audio.paused); renderNP(); });
@@ -1108,6 +1194,7 @@ document.addEventListener('click', e => {
     if (a==='theme'){ setTheme(document.documentElement.dataset.mode==='night'?'day':'night'); return; }
   }
   const tp = t.closest('[data-theme-set]'); if (tp){ setTheme(tp.dataset.themeSet); render(); return; }
+  const sp = t.closest('[data-srcpref]'); if (sp){ LS.set('srcPref', sp.dataset.srcpref); if (sp.dataset.srcpref==='ext' && NATIVE && !extInfo.access){ try{ YoruNative.extOpenAccess(); }catch(e){} toast('알림 접근 권한을 켜면 연동이 시작돼요'); } const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; return; }
   const np = t.closest('[data-np]'); if (np){ state.npTab = np.dataset.np; renderNP(); if (innerWidth<=820) $('.rgt2')?.scrollIntoView({block:'start'}); return; }
   const lm = t.closest('[data-lm]'); if (lm){ state.lyrMode = lm.dataset.lm; LS.set('lyrMode', state.lyrMode); renderNP(); return; }
   const ch = t.closest('[data-chip]'); if (ch){ const id = ch.dataset.chip; if (playable(id)) playOne(id); else openNP(id); return; }
