@@ -134,6 +134,8 @@ function coverOf(aid, px=300){
   return u.replace(/\/\d+x\d+(bb|cc)?\.(jpg|png|webp)$/i, `/${px}x${px}bb.jpg`);
 }
 const albKey = t => norm(String(t||'').replace(/\s*-\s*(Single|EP)$/i,''));
+const ALB_EN = { dakara:["That's Why I Gave Up on Music"], elma:['Elma'], tousaku:['Plagiarism'], sousaku:['Creation'], gentou:['Magic Lantern'], nininshou:['second person'] };
+const dayOf = s => { const m = String(s||'').match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})/); return m ? Date.UTC(+m[1], +m[2]-1, +m[3]) / 864e5 : NaN; };
 let coverBusy = false;
 async function fetchCovers(manual){
   if (coverBusy) return; coverBusy = true;
@@ -141,21 +143,26 @@ async function fetchCovers(manual){
     const d = await jsonp(`${IT}?id=${UPD_CFG.itunesId}&entity=album&limit=200&country=jp&lang=ja_jp`);
     const cols = (d.results||[]).filter(r => r.wrapperType==='collection' && r.artistId===UPD_CFG.itunesId && r.artworkUrl100)
       .sort((x,y) => (x.releaseDate||'').localeCompare(y.releaseDate||''));          // 같은 이름이면 처음 나온 판
-    const by = {}; cols.forEach(c => { const k = albKey(c.collectionName); if (k && !by[k]) by[k] = c.artworkUrl100; });
-    const map = {};
-    ALBUMS.forEach(a => { if (a.live) return;
-      if (a.id === 'singles'){ for (let i = a.tracks.length-1; i >= 0; i--){ const u = by[albKey(a.tracks[i][0])]; if (u){ map[a.id] = u; break; } } return; }
-      const u = by[albKey(a.jp)]; if (u) map[a.id] = u; });
+    /* 카탈로그에는 『エルマ』부터 영어 이름(Elma, Plagiarism…)으로 올라가 있다 → 영어 이름도 보고, 그래도 없으면 발매일(±1일)+곡 수로 찾는다 */
+    const map = {}, how = {};
+    ALBUMS.forEach(a => { if (a.live || a.id === 'singles') return;
+      const keys = [a.jp, ...(ALB_EN[a.id] || [])].map(albKey);
+      let c = cols.find(x => keys.includes(albKey(x.collectionName))); how[a.id] = 'name';
+      if (!c){ const d = dayOf(a.date); const cand = cols.filter(x => !/-\s*Single$/i.test(x.collectionName) && Math.abs(dayOf(x.releaseDate) - d) <= 1)
+          .sort((x,y) => Math.abs((x.trackCount||0) - a.tracks.length) - Math.abs((y.trackCount||0) - a.tracks.length)); c = cand[0]; how[a.id] = 'date'; }
+      if (c) map[a.id] = c.artworkUrl100; else delete how[a.id]; });
+    const lastSingle = cols.filter(x => /-\s*Single$/i.test(x.collectionName)).sort((x,y) => (y.releaseDate||'').localeCompare(x.releaseDate||''))[0];
+    if (lastSingle) map.singles = lastSingle.artworkUrl100;
     const old = JSON.stringify(COV.map || {});
     const miss = ALBUMS.filter(a => !a.live && !map[a.id]).map(a => a.id);
-    COV = { map, at: Date.now(), n: Object.keys(map).length, v: 2, miss, found: cols.length }; LS.set('covers', COV);
+    COV = { map, at: Date.now(), n: Object.keys(map).length, v: 3, miss, found: cols.length, how }; LS.set('covers', COV);
     if (manual) toast(Object.keys(map).length ? `공식 커버 ${Object.keys(map).length}장을 불러왔어요` : '커버를 찾지 못했어요');
     if (old !== JSON.stringify(map) || manual){ if (!$('#np').classList.contains('open')){ const y = $('#main').scrollTop; render(); $('#main').scrollTop = y; } updateBar(); }
   }catch(e){ COV = { ...COV, err: Date.now() }; LS.set('covers', COV); if (manual) toast(/claude|anthropic/.test(location.host) ? '미리보기 화면에서는 외부 연결이 막혀 있어요 — 설치한 앱에서 불러와져요' : '커버를 불러오지 못했어요 — 인터넷 연결을 확인해 주세요'); }
   coverBusy = false;
 }
 /* 일주일에 한 번, 또는 저장 형식이 바뀌었거나 지난번에 실패했으면 다시 불러온다 */
-function maybeCovers(){ const c = COV; if (coverMode()==='official' && navigator.onLine !== false && (!c.at || c.v !== 2 || (c.err && c.err > c.at) || ALBUMS.some(a => !a.live && !(c.map||{})[a.id] && !(c.miss||[]).includes(a.id)) || Date.now() - c.at > 7*864e5)) fetchCovers(false); }
+function maybeCovers(){ const c = COV; if (coverMode()==='official' && navigator.onLine !== false && (!c.at || c.v !== 3 || (c.err && c.err > c.at) || ALBUMS.some(a => !a.live && !(c.map||{})[a.id] && !(c.miss||[]).includes(a.id)) || Date.now() - c.at > 7*864e5)) fetchCovers(false); }
 addEventListener('online', () => maybeCovers());
 function art(aid, big){
   const cv = coverOf(aid, big ? 600 : 300);
