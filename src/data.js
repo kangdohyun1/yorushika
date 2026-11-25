@@ -268,3 +268,24 @@ const LIVES = [
     blurb:l.blurb, readings:l.readings,
     tracks: l.tracks.map(j => { const s = studio[j]; return s ? [j, s[1], s[2]||''] : [j, j==='Overture' ? '서곡' : j, j==='Overture' ? 'i' : '']; }) }));
 })();
+
+/* YouTube 공식 영상 — ヨルシカ / n-buna Official 채널의 MV, OFFICIAL VIDEO, Ver.MUSIC, 공식 음원
+   키: 일본어 곡 제목(재녹음은 제목 그대로), 값: 영상 ID */
+const YT_MV = {
+  '言って。':'F64yFFnZfkI', '靴の花火':'BCt9lS_Uv_Y', '雲と幽霊':'JJaCwW4HyVs',
+  'ただ君に晴れ':'-VKIqrvVOpo', 'ヒッチコック':'t7MBzMP4OzY', '準透明少年':'9ypEFXTakV8',
+  '藍二乗':'4MoRLTAJY_0', '八月、某、月明かり':'Vs5NViM8TSY', 'パレード':'ry3Tupx4BL4', '4/10':'lIa4QWD-gL8', 'だから僕は音楽を辞めた':'KTZ-y85Erus',
+  '雨とカプチーノ':'PWbRleMGagU', '歩く':'E-wugQd3McM', '心に穴が空いた':'DlyG6MAKUOA', '声':'6sJPSd21HNw', 'ノーチラス':'j83OVgv6woA',
+  '春ひさぎ':'F3cXxqgbx9Y', '爆弾魔 (Re-Recording)':'XifmeRdJCjo', '盗作':'CS4f3jawFxY', '思想犯':'ENcnYh79dUY', '夜行':'MH5noJJfqDY', '花に亡霊':'9lVPAWLWtWc',
+  '春泥棒':'Sw1Flgub9s8', '風を食む':'GVrRXhS0mLs', '嘘月':'utpMm8qi4hg',
+  'ブレーメン':'oy6MDr6I6rM', 'チノカテ':'Fq55MMfHoJg', '月に吠える':'wCN9WliV-ew', '451':'RmYdZZLOYA8', '又三郎':'siNFnlqtd8M', '老人と海':'WwnZeQiI6hQ', '左右盲':'1IlTeOMCNJU', 'アルジャーノン':'_9_rUFrgLI8',
+  '太陽':'Qgj3xHRlGr8', '晴る':'CkvWJNt77mU', '忘れてください':'J_DE2d1F9wU', '修羅':'h4F-q-R67H0', '火星人':'OLRbIc8KZ_8', 'アポリア':'fhTFysCtF6g', 'へび':'sf0QFJTvOLM', '月光浴':'wUzvF5xm2C0', '千鳥':'t75qlQPXJGw', '櫂':'SIwfXPESJ8k',
+  'テレパス':'LTeROfwwtnA', '斜陽':'bqigIHMComE', '茜':'VD_ztcqWBAY', 'あぶく':'OHAjc-ayhus', '雲を抜け風下へ私だけ':'J5-NUv2fNtk'
+};
+/* YouTube Music 공식 앨범 재생목록 — MV가 없는 수록곡을 앨범 음원으로 채움. order가 없으면 앨범 트랙 순서 그대로 */
+const YT_LIST = {
+  makeinu:{ list:'OLAK5uy_ms71NJ4p7T76oxLP7qnSOVHtNCQlkSqfQ' },
+  dakara:{ list:'OLAK5uy_lfdGZfVL6iKGGDmhOfNWZmJB4ryave-C0' },
+  elma:{ list:'OLAK5uy_ld-S4Z4GPEgAulzBhsaCOqrx3uXeqXzhA' },
+  gentou:{ list:'OLAK5uy_nYkTcWLQkJ6qsws91O5UFvNkIsvweu1sw', order:['都落ち','ブレーメン','チノカテ','月に吠える','451','又三郎','老人と海','左右盲','アルジャーノン','第一夜'] }
+};

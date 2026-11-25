@@ -1,9 +1,9 @@
-const C='yoru-v4';
+const C='yoru-v5';
 const ART=['natsukusa','makeinu','dakara','elma','tousaku','sousaku','gentou','nininshou','singles','live-zense21','live-gekkou','live-tsuki','live-zense24','live-tousaku'].map(a=>'art/'+a+'.png');
 const CORE=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png',...ART];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(CORE)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim()});
-self.addEventListener('fetch',e=>{const u=e.request.url;if(e.request.method!=='GET'||/itunes\.apple\.com|musicbrainz\.org/.test(u))return;
+self.addEventListener('fetch',e=>{const u=e.request.url;if(e.request.method!=='GET'||/itunes\.apple\.com|musicbrainz\.org|youtube\.com|ytimg\.com|googlevideo\.com/.test(u))return;
   if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).then(r=>{const cl=r.clone();caches.open(C).then(c=>c.put('index.html',cl));return r}).catch(()=>caches.match('index.html')));return}
   e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{if(res.ok&&(u.startsWith(self.location.origin)||/fonts\.(googleapis|gstatic)/.test(u))){const cl=res.clone();caches.open(C).then(c=>c.put(e.request,cl))}return res})))});
 /* ---- 새 발매 백그라운드 확인 (Chrome Android 설치 앱) ---- */

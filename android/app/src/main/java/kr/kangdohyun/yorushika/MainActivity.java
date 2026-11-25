@@ -96,6 +96,7 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 if (HOST.equals(u.getHost())) return false;
+                if (!r.isForMainFrame()) return false; // YouTube 영상 iframe 등 하위 프레임은 앱 안에서 연다
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, u));
                 } catch (Exception ignored) {
@@ -217,6 +218,13 @@ public class MainActivity extends Activity {
         web.evaluateJavascript("(window.yoruBack&&window.yoruBack())?'1':'0'", v -> {
             if (!"\"1\"".equals(v)) moveTaskToBack(true);
         });
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // YouTube 공식 영상 재생은 화면이 꺼지거나 앱을 나가면 멈춘다(백그라운드 재생 불가)
+        if (web != null) web.evaluateJavascript("window.yoruBg&&window.yoruBg()", null);
     }
 
     @Override

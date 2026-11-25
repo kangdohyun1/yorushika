@@ -19,3 +19,10 @@ Settings → Pages → Branch `main`, 폴더 `/docs` 로 켜면
 - `docs/` — 웹앱 (PWA). 안드로이드 앱에도 그대로 들어갑니다.
 - `android/` — 안드로이드 앱 (WebView + Media3 재생 서비스 + 새 발매 확인 작업)
 - `.github/workflows/android.yml` — `main`에 올릴 때마다 APK를 빌드해 Releases에 올립니다.
+
+## YouTube 공식 영상으로 듣기
+음원 파일이 없는 곡은 요루시카 공식 YouTube 영상(MV·OFFICIAL VIDEO·공식 앨범 재생목록)으로 재생됩니다.
+- 재생 화면에서는 앨범 아트 자리에, 그 밖에서는 오른쪽 아래 작은 창(200×200 이상)에 영상이 보입니다.
+- 화면을 끄거나 앱을 나가면 멈춥니다(백그라운드 재생 불가). 잠금화면·버즈 조작은 음원 파일 재생에서만 됩니다.
+- 영상이 없는 곡은 곡 정보 → 'YouTube 링크 직접 연결'로 주소를 붙여 넣으면 됩니다.
+- claude.ai 미리보기에서는 YouTube가 막혀 있어 APK나 GitHub Pages 주소에서만 동작합니다.
